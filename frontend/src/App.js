@@ -1,0 +1,240 @@
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
+
+// Pages
+import Home from './pages/Home';
+import Login from './pages/Login';
+import Register from './pages/Register';
+
+// Organizer Pages
+import OrganizerDashboard from './pages/Organizer/Dashboard';
+import CreateConference from './pages/Organizer/CreateConference';
+import ManageConference from './pages/Organizer/ManageConference';
+import ViewSubmissions from './pages/Organizer/ViewSubmissions';
+
+// Author Pages
+import AuthorDashboard from './pages/Author/Dashboard';
+import DiscoverConferences from './pages/Author/DiscoverConferences';
+import ConferenceDetails from './pages/Author/ConferenceDetails';
+import SubmitPaper from './pages/Author/SubmitPaper';
+import MySubmissions from './pages/Author/MySubmissions';
+
+// Reviewer Pages
+import ReviewerDashboard from './pages/Reviewer/Dashboard';
+import ActiveConferences from './pages/Reviewer/ActiveConferences';
+import ConferenceSubmissions from './pages/Reviewer/ConferenceSubmissions';
+import MyAssignedPapers from './pages/Reviewer/BrowseConferences';
+import BidSubmissions from './pages/Reviewer/BidSubmissions';
+import ReviewPaper from './pages/Reviewer/ReviewPaper';
+import MyReviews from './pages/Reviewer/MyReviews';
+
+// Participant Pages
+import ParticipantDashboard from './pages/Participant/Dashboard';
+import BrowseEvents from './pages/Participant/BrowseEvents';
+import EventDetails from './pages/Participant/EventDetails';
+import MyCertificates from './pages/Participant/MyCertificates';
+
+function App() {
+  return (
+    <Router>
+      <AuthProvider>
+        <div className="min-h-screen bg-gray-50">
+          <Routes>
+            {/* Public Routes */}
+            <Route path="/" element={<Home />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+
+            {/* Organizer Routes */}
+            <Route
+              path="/organizer/dashboard"
+              element={
+                <ProtectedRoute allowedRoles={['organizer']}>
+                  <OrganizerDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/organizer/create-conference"
+              element={
+                <ProtectedRoute allowedRoles={['organizer']}>
+                  <CreateConference />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/organizer/manage-conference/:id"
+              element={
+                <ProtectedRoute allowedRoles={['organizer']}>
+                  <ManageConference />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/organizer/submissions/:id"
+              element={
+                <ProtectedRoute allowedRoles={['organizer']}>
+                  <ViewSubmissions />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Author Routes */}
+            <Route
+              path="/author/dashboard"
+              element={
+                <ProtectedRoute allowedRoles={['author']}>
+                  <AuthorDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/author/discover"
+              element={
+                <ProtectedRoute allowedRoles={['author']}>
+                  <DiscoverConferences />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/author/conference/:id"
+              element={
+                <ProtectedRoute allowedRoles={['author']}>
+                  <ConferenceDetails />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/author/submit/:conferenceId"
+              element={
+                <ProtectedRoute allowedRoles={['author']}>
+                  <SubmitPaper />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/author/submissions"
+              element={
+                <ProtectedRoute allowedRoles={['author']}>
+                  <MySubmissions />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Reviewer Routes */}
+            <Route
+              path="/reviewer/dashboard"
+              element={
+                <ProtectedRoute allowedRoles={['reviewer']}>
+                  <ReviewerDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/reviewer/browse-conferences"
+              element={
+                <ProtectedRoute allowedRoles={['reviewer']}>
+                  <ActiveConferences />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/reviewer/conferences/:id/submissions"
+              element={
+                <ProtectedRoute allowedRoles={['reviewer']}>
+                  <ConferenceSubmissions />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/reviewer/assigned-papers"
+              element={
+                <ProtectedRoute allowedRoles={['reviewer']}>
+                  <MyAssignedPapers />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/reviewer/conferences"
+              element={
+                <ProtectedRoute allowedRoles={['reviewer']}>
+                  <ActiveConferences />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/reviewer/conference/:id/submissions"
+              element={
+                <ProtectedRoute allowedRoles={['reviewer']}>
+                  <BidSubmissions />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/reviewer/submission/:id/review"
+              element={
+                <ProtectedRoute allowedRoles={['reviewer']}>
+                  <ReviewPaper />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/reviewer/review/:id"
+              element={
+                <ProtectedRoute allowedRoles={['reviewer']}>
+                  <ReviewPaper />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/reviewer/reviews"
+              element={
+                <ProtectedRoute allowedRoles={['reviewer']}>
+                  <MyReviews />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Participant Routes */}
+            <Route
+              path="/participant/dashboard"
+              element={
+                <ProtectedRoute allowedRoles={['participant']}>
+                  <ParticipantDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/participant/events"
+              element={
+                <ProtectedRoute allowedRoles={['participant']}>
+                  <BrowseEvents />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/participant/event/:id"
+              element={
+                <ProtectedRoute allowedRoles={['participant']}>
+                  <EventDetails />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/participant/certificates"
+              element={
+                <ProtectedRoute allowedRoles={['participant']}>
+                  <MyCertificates />
+                </ProtectedRoute>
+              }
+            />
+          </Routes>
+        </div>
+      </AuthProvider>
+    </Router>
+  );
+}
+
+export default App;
