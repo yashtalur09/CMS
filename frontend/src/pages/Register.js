@@ -5,6 +5,8 @@ import Input from '../components/Input';
 import Select from '../components/Select';
 import Button from '../components/Button';
 import Card from '../components/Card';
+import OrcidButton from '../components/OrcidButton';
+import GoogleButton from '../components/GoogleButton';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -175,6 +177,24 @@ const Register = () => {
               {loading ? 'Creating Account...' : 'Create Account'}
             </Button>
           </form>
+
+          {/* Divider */}
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-300"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-white text-gray-500">Or register with</span>
+            </div>
+          </div>
+
+          {/* ORCID Registration Button */}
+          <OrcidButton role={roleParam} />
+
+          {/* Google Registration Button */}
+          <div className="mt-3">
+            <GoogleButton role={roleParam} />
+          </div>
 
           <div className="mt-6 text-center">
             <p className="text-gray-600">

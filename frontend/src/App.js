@@ -7,6 +7,8 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import OrcidCallback from './pages/OrcidCallback';
+import GoogleCallback from './pages/GoogleCallback';
 
 // Organizer Pages
 import OrganizerDashboard from './pages/Organizer/Dashboard';
@@ -46,6 +48,8 @@ function App() {
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/auth/orcid/callback" element={<OrcidCallback />} />
+            <Route path="/auth/google/callback" element={<GoogleCallback />} />
 
             {/* Organizer Routes */}
             <Route

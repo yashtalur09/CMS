@@ -8,6 +8,7 @@ A modern, full-stack conference management platform supporting the complete life
 - **Role-Based Access Control** - Four stakeholder roles (Organizer, Author, Reviewer, Participant)
 - **Complete Conference Lifecycle** - From submission to certification
 - **JWT Authentication** - Secure user authentication and authorization
+- **OAuth Integration** 🆕 - Multiple sign-in options (ORCID, Google) for enhanced security and convenience
 - **MongoDB Database** - Scalable NoSQL database with Mongoose ODM
 - **RESTful APIs** - Well-structured backend APIs
 - **Responsive Design** - Mobile and desktop friendly
@@ -294,10 +295,39 @@ This project is licensed under the MIT License.
 - Card-based UI inspired by modern event discovery platforms
 - Built with best practices for scalability and maintainability
 
+## 🆔 OAuth Integration (ORCID & Google)
+
+This system supports multiple OAuth authentication methods for secure, convenient sign-in.
+
+### 🔬 ORCID Integration
+For verified researcher identity. Users can login/register using their ORCID iD.
+
+**Documentation:**
+- **[ORCID_SETUP.md](ORCID_SETUP.md)** - Detailed setup guide
+- **[ORCID_CHECKLIST.md](ORCID_CHECKLIST.md)** - Testing checklist
+
+### 🔐 Google Sign-In
+For familiar, secure authentication. Users can login/register with their Google account.
+
+**Documentation:**
+- **[GOOGLE_SETUP.md](GOOGLE_SETUP.md)** - Detailed setup guide
+
+### Quick Setup
+1. **Get OAuth credentials:**
+   - ORCID: https://orcid.org/developer-tools
+   - Google: https://console.cloud.google.com/
+2. **Configure environment variables** (see respective setup guides)
+3. **Test the integrations**
+
+**Quick Setup Script (Windows):**
+```bash
+setup-orcid.bat
+```
+
 ## 📞 Support
 
 For support, email support@cms.com or open an issue in the repository.
 
 ---
 
-**Note:** This is a complete, production-ready conference management system. All core features are implemented. Placeholder pages can be expanded with additional functionality as needed.
+**Note:** This is a complete, production-ready conference management system. All core features are implemented, including ORCID authentication. Placeholder pages can be expanded with additional functionality as needed.
