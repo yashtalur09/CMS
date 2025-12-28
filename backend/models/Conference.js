@@ -15,7 +15,7 @@ const conferenceSchema = new mongoose.Schema({
   description: {
     type: String,
     required: [true, 'Description is required'],
-    maxlength: [2000, 'Description cannot exceed 2000 characters']
+    maxlength: [5000, 'Description cannot exceed 5000 characters']
   },
   venue: {
     type: String,

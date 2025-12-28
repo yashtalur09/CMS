@@ -35,6 +35,13 @@ const CreateConference = () => {
     setLoading(true);
     setError('');
 
+    // Validate description length
+    if (formData.description.length > 5000) {
+      setError('Description cannot exceed 5000 characters');
+      setLoading(false);
+      return;
+    }
+
     try {
       const data = {
         ...formData,
@@ -70,15 +77,20 @@ const CreateConference = () => {
               required
             />
 
-            <Textarea
-              label="Description"
-              name="description"
-              value={formData.description}
-              onChange={handleChange}
-              placeholder="Describe your conference..."
-              rows={4}
-              required
-            />
+            <div className="mb-4">
+              <Textarea
+                label="Description"
+                name="description"
+                value={formData.description}
+                onChange={handleChange}
+                placeholder="Describe your conference..."
+                rows={6}
+                required
+              />
+              <p className={`text-sm mt-1 ${formData.description.length > 5000 ? 'text-red-600' : 'text-gray-500'}`}>
+                {formData.description.length} / 5000 characters
+              </p>
+            </div>
 
             <Input
               label="Venue"
