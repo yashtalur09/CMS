@@ -20,12 +20,22 @@ app.use(express.urlencoded({ extended: true }));
 // Static file serving for uploads
 app.use('/uploads', express.static('uploads'));
 
-// Routes
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/organizer', require('./routes/organizer'));
-app.use('/api/author', require('./routes/author'));
-app.use('/api/reviewer', require('./routes/reviewer'));
-app.use('/api/participant', require('./routes/participant'));
+// routers
+const authRouter = require('./routes/auth');
+const authorRouter = require('./routes/author');
+const reviewerRouter = require('./routes/reviewer');
+const organizerRouter = require('./routes/organizer');
+const participantRouter = require('./routes/participant');
+const tracksRouter = require('./routes/tracks'); // NEW
+const uploadRouter = require('./routes/upload'); // File uploads
+
+app.use('/api/auth', authRouter);
+app.use('/api/author', authorRouter);
+app.use('/api/reviewer', reviewerRouter);
+app.use('/api/organizer', organizerRouter);
+app.use('/api/participant', participantRouter);
+app.use('/api/tracks', tracksRouter);
+app.use('/api/upload', uploadRouter);
 
 // Health check route
 app.get('/api/health', (req, res) => {

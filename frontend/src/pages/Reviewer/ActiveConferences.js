@@ -30,7 +30,7 @@ const ActiveConferences = () => {
   const fetchConferences = async () => {
     try {
       const response = await api.get('/reviewer/conferences');
-      setConferences(response.data.data.conferences || []);
+      setConferences(response.data.data?.conferences || response.data.conferences || []);
     } catch (error) {
       console.error('Error fetching conferences:', error);
     } finally {

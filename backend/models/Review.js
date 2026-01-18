@@ -11,6 +11,11 @@ const reviewSchema = new mongoose.Schema({
     ref: 'User',
     required: [true, 'Reviewer ID is required']
   },
+  trackId: { // NEW: track-scoped reference
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Track',
+    required: false
+  },
   score: {
     type: Number,
     required: [true, 'Score is required'],
@@ -25,7 +30,7 @@ const reviewSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['draft', 'submitted'],
+    enum: ['draft', 'submitted', 'pending_revision'],
     default: 'draft'
   },
   comments: {
@@ -42,8 +47,15 @@ const reviewSchema = new mongoose.Schema({
     default: Date.now
   }
 }, {
-  timestamps: true
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
 });
+
+// indexes
+reviewSchema.index({ submissionId: 1 });
+reviewSchema.index({ reviewerId: 1 });
+reviewSchema.index({ trackId: 1 });
 
 // Compound index to prevent duplicate reviews
 reviewSchema.index({ submissionId: 1, reviewerId: 1 }, { unique: true });

@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { body, validationResult } = require('express-validator');
 const { auth, authorize } = require('../middleware/auth');
-const { upload, setUploadType } = require('../middleware/upload');
 const Conference = require('../models/Conference');
+const Track = require('../models/Track');
 const Submission = require('../models/Submission');
 const Review = require('../models/Review');
 
@@ -154,344 +154,223 @@ router.get('/conferences/:id', async (req, res) => {
 });
 
 /**
- * @route   POST /api/author/submissions
- * @desc    Submit a paper to a conference
+ * @route   GET /api/author/conferences/:id/tracks
+ * @desc    Get tracks for a conference (for authors to select when submitting)
  * @access  Private (Author)
  */
-router.post('/submissions', 
-  setUploadType('submissions'),
-  upload.single('paper'),
+router.get('/conferences/:id/tracks', async (req, res) => {
+  try {
+    const conference = await Conference.findById(req.params.id);
+
+    if (!conference) {
+      return res.status(404).json({
+        success: false,
+        message: 'Conference not found'
+      });
+    }
+
+    const tracks = await Track.find({ conferenceId: req.params.id })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.json({
+      success: true,
+      data: tracks
+    });
+
+  } catch (error) {
+    console.error('Get conference tracks error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching tracks',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * @route   POST /api/author/conferences/:conferenceId/submissions
+ * @desc    Submit a paper to a specific track of a conference (trackId required)
+ * @access  Private (Author)
+ */
+router.post(
+  '/conferences/:conferenceId/submissions',
   [
-    body('conferenceId').notEmpty().withMessage('Conference ID is required'),
     body('title').trim().notEmpty().withMessage('Title is required'),
-    body('abstract').trim().notEmpty().withMessage('Abstract is required')
+    body('abstract').trim().notEmpty().withMessage('Abstract is required'),
+    body('trackId').notEmpty().withMessage('trackId is required'),
+    body('fileUrl').trim().notEmpty().withMessage('fileUrl is required')
   ],
   async (req, res) => {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        return res.status(400).json({
-          success: false,
-          errors: errors.array()
-        });
+        return res.status(400).json({ success: false, errors: errors.array() });
       }
 
-      if (!req.file) {
-        return res.status(400).json({
-          success: false,
-          message: 'Paper file is required'
-        });
-      }
+      const { conferenceId } = req.params;
+      const { title, abstract, trackId, fileUrl } = req.body;
 
-      const { conferenceId, title, abstract } = req.body;
-
-      // Check if conference exists and is active
-      const conference = await Conference.findById(conferenceId);
+      // Validate conference
+      const conference = await Conference.findById(conferenceId).lean();
       if (!conference) {
-        return res.status(404).json({
-          success: false,
-          message: 'Conference not found'
-        });
+        return res.status(404).json({ success: false, message: 'Conference not found' });
       }
 
-      if (conference.status !== 'active') {
-        return res.status(400).json({
-          success: false,
-          message: 'Conference is not accepting submissions'
-        });
+      // Validate track belongs to conference
+      const track = await Track.findOne({ _id: trackId, conferenceId: conferenceId }).lean();
+      if (!track) {
+        return res.status(400).json({ success: false, message: 'Invalid track for this conference' });
       }
 
-      if (new Date() > conference.submissionDeadline) {
-        return res.status(400).json({
-          success: false,
-          message: 'Submission deadline has passed'
-        });
+      // Check submission deadline (track-level fallback to conference-level)
+      const deadline = track.submissionDeadline || conference.submissionDeadline;
+      if (deadline && new Date() > new Date(deadline)) {
+        return res.status(400).json({ success: false, message: 'Submission deadline has passed for this track' });
       }
 
-      // Check for duplicate submission
-      const existingSubmission = await Submission.findOne({
-        conferenceId,
-        authorId: req.user.userId
-      });
-
-      if (existingSubmission) {
-        return res.status(400).json({
-          success: false,
-          message: 'You have already submitted to this conference'
-        });
-      }
-
-      // Create submission
+      // Create submission (track-scoped)
       const submission = new Submission({
-        conferenceId,
-        authorId: req.user.userId,
         title,
         abstract,
-        fileUrl: `/uploads/submissions/${req.file.filename}`,
-        status: 'submitted',
-        submittedAt: Date.now(),
-        lastUpdatedAt: Date.now(),
-        reviewCount: 0,
-        requiredReviews: 3,
-        assignedReviewers: [],
-        precheck: {
-          format: true,
-          plagiarismScore: 0 // TODO: Integrate plagiarism API
-        }
+        fileUrl,
+        authorId: req.user.userId,
+        conferenceId,
+        trackId,
+        status: 'submitted'
       });
 
       await submission.save();
 
-      res.status(201).json({
-        success: true,
-        message: 'Paper submitted successfully',
-        data: { submission }
-      });
+      res.status(201).json({ success: true, message: 'Submission created', data: submission });
 
     } catch (error) {
-      console.error('Submit paper error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Error submitting paper',
-        error: error.message
-      });
+      console.error('Author submit error:', error);
+      res.status(500).json({ success: false, message: 'Error creating submission', error: error.message });
     }
   }
 );
 
 /**
  * @route   GET /api/author/submissions
- * @desc    Get all submissions by author
+ * @desc    Get submissions by current author (optional ?trackId=)
  * @access  Private (Author)
  */
 router.get('/submissions', async (req, res) => {
   try {
-    const submissions = await Submission.find({ authorId: req.user.userId })
-      .populate('conferenceId', 'name venue startDate endDate')
-      .populate('assignedReviewers', 'name')
-      .populate('decision.decidedBy', 'name')
-      .sort({ createdAt: -1 });
+    const query = { authorId: req.user.userId };
+    if (req.query.trackId) {
+      query.trackId = req.query.trackId;
+    }
+    const submissions = await Submission.find(query)
+      .populate('conferenceId', 'name')
+      .populate('trackId', 'name')
+      .sort({ submittedAt: -1 })
+      .lean();
 
-    // Add review progress and majority decision to each submission
-    const submissionsWithProgress = await Promise.all(submissions.map(async (sub) => {
-      const subObj = sub.toObject();
-      
-      // Calculate majority decision if reviews are complete
-      let majorityDecision = null;
-      if (sub.reviewCount === sub.requiredReviews && sub.reviewCount > 0) {
-        const Review = require('../models/Review');
-        const reviews = await Review.find({ submissionId: sub._id, status: 'submitted' });
-        
-        if (reviews.length > 0) {
-          const voteBreakdown = {
-            accept: 0,
-            reject: 0,
-            minorRevision: 0,
-            majorRevision: 0
-          };
-
-          reviews.forEach(review => {
-            switch (review.recommendation) {
-              case 'ACCEPT': voteBreakdown.accept++; break;
-              case 'REJECT': voteBreakdown.reject++; break;
-              case 'MINOR_REVISION': voteBreakdown.minorRevision++; break;
-              case 'MAJOR_REVISION': voteBreakdown.majorRevision++; break;
-            }
-          });
-
-          const totalVotes = reviews.length;
-          const acceptPercentage = (voteBreakdown.accept / totalVotes) * 100;
-          const rejectPercentage = (voteBreakdown.reject / totalVotes) * 100;
-
-          if (acceptPercentage > 50) {
-            majorityDecision = 'ACCEPTED';
-          } else if (rejectPercentage >= 50) {
-            majorityDecision = 'REJECTED';
-          } else {
-            majorityDecision = 'NEEDS_REVISION';
-          }
-        }
-      }
-
-      return {
-        ...subObj,
-        majorityDecision,
-        progress: `${sub.reviewCount || 0} / ${sub.requiredReviews || 3} reviews completed`,
-        reviewProgress: {
-          completed: sub.reviewCount || 0,
-          required: sub.requiredReviews || 3,
-          percentage: Math.round(((sub.reviewCount || 0) / (sub.requiredReviews || 3)) * 100)
-        }
-      };
-    }));
-
-    res.json({
-      success: true,
-      data: submissionsWithProgress
-    });
-
+    res.json({ success: true, data: submissions });
   } catch (error) {
-    console.error('Get submissions error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching submissions',
-      error: error.message
-    });
+    console.error('Author get submissions error:', error);
+    res.status(500).json({ success: false, message: 'Error fetching submissions', error: error.message });
   }
 });
 
 /**
  * @route   GET /api/author/submissions/:id
- * @desc    Get submission details with reviews and majority voting
+ * @desc    Get submission details with reviews (comments only, no scores/recommendations)
  * @access  Private (Author)
  */
 router.get('/submissions/:id', async (req, res) => {
   try {
-    const submission = await Submission.findOne({
-      _id: req.params.id,
-      authorId: req.user.userId
-    })
-    .populate('conferenceId', 'name venue startDate endDate')
-    .populate('assignedReviewers', 'name email')
-    .populate('decision.decidedBy', 'name');
+    const submission = await Submission.findOne({ _id: req.params.id, authorId: req.user.userId })
+      .populate('conferenceId', 'name')
+      .populate('trackId', 'name description')
+      .lean();
 
     if (!submission) {
-      return res.status(404).json({
-        success: false,
-        message: 'Submission not found'
-      });
+      return res.status(404).json({ success: false, message: 'Submission not found' });
     }
 
-    // Get reviews (exclude confidential comments for author)
-    const reviews = await Review.find({ submissionId: req.params.id, status: 'submitted' })
-      .select('-confidentialComments')
-      .populate('reviewerId', 'name email');
+    // Fetch reviews for this submission (only comments field visible to author)
+    const reviews = await Review.find({ submissionId: submission._id })
+      .select('comments submittedAt -_id')
+      .sort({ submittedAt: -1 })
+      .lean();
 
-    // Calculate majority voting and review statistics
-    let majorityDecision = null;
-    let voteBreakdown = {
-      accept: 0,
-      reject: 0,
-      minorRevision: 0,
-      majorRevision: 0
-    };
-    let averageScore = null;
-    let decisionReason = '';
+    // Attach reviews to submission (only showing suggestions/comments)
+    submission.reviews = reviews.map((review, index) => ({
+      reviewNumber: index + 1,
+      comments: review.comments,
+      submittedAt: review.submittedAt
+    }));
 
-    if (reviews.length > 0) {
-      // Count votes
-      reviews.forEach(review => {
-        switch (review.recommendation) {
-          case 'ACCEPT':
-            voteBreakdown.accept++;
-            break;
-          case 'REJECT':
-            voteBreakdown.reject++;
-            break;
-          case 'MINOR_REVISION':
-            voteBreakdown.minorRevision++;
-            break;
-          case 'MAJOR_REVISION':
-            voteBreakdown.majorRevision++;
-            break;
-        }
-      });
-
-      // Calculate average score
-      const totalScore = reviews.reduce((sum, review) => sum + review.score, 0);
-      averageScore = (totalScore / reviews.length).toFixed(1);
-
-      // Determine majority decision (only if all reviews are complete)
-      if (reviews.length === submission.requiredReviews) {
-        const totalVotes = reviews.length;
-        const acceptPercentage = (voteBreakdown.accept / totalVotes) * 100;
-        const rejectPercentage = (voteBreakdown.reject / totalVotes) * 100;
-
-        if (acceptPercentage > 50) {
-          majorityDecision = 'ACCEPTED';
-          decisionReason = `${voteBreakdown.accept} out of ${totalVotes} reviewers (${acceptPercentage.toFixed(0)}%) recommended acceptance.`;
-        } else if (rejectPercentage >= 50) {
-          majorityDecision = 'REJECTED';
-          const rejectionReasons = reviews
-            .filter(r => r.recommendation === 'REJECT')
-            .map(r => r.comments)
-            .filter(c => c && c.trim())
-            .join('; ');
-          decisionReason = `${voteBreakdown.reject} out of ${totalVotes} reviewers (${rejectPercentage.toFixed(0)}%) recommended rejection.`;
-          if (rejectionReasons) {
-            decisionReason += ` Main concerns: ${rejectionReasons}`;
-          }
-        } else {
-          majorityDecision = 'NEEDS_REVISION';
-          decisionReason = `Mixed reviews received. ${voteBreakdown.minorRevision + voteBreakdown.majorRevision} reviewer(s) suggested revisions. Please address the feedback and consider resubmission.`;
-        }
-      }
-    }
-
-    res.json({
-      success: true,
-      data: {
-        ...submission.toObject(),
-        reviews,
-        voteBreakdown,
-        majorityDecision,
-        decisionReason,
-        averageScore,
-        progress: `${submission.reviewCount || 0} / ${submission.requiredReviews || 3} reviews completed`,
-        reviewProgress: {
-          completed: submission.reviewCount || 0,
-          required: submission.requiredReviews || 3,
-          percentage: Math.round(((submission.reviewCount || 0) / (submission.requiredReviews || 3)) * 100)
-        }
-      }
-    });
-
+    res.json({ success: true, data: submission });
   } catch (error) {
-    console.error('Get submission error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching submission',
-      error: error.message
-    });
+    console.error('Author get submission detail error:', error);
+    res.status(500).json({ success: false, message: 'Error fetching submission', error: error.message });
   }
 });
 
 /**
- * @route   PUT /api/author/submissions/:id/payment
- * @desc    Update payment status
+ * @route   PUT /api/author/submissions/:id/revision
+ * @desc    Upload revised paper and abstract when status is 'revision'
  * @access  Private (Author)
  */
-router.put('/submissions/:id/payment', async (req, res) => {
-  try {
-    const submission = await Submission.findOne({
-      _id: req.params.id,
-      authorId: req.user.userId
-    });
+router.put(
+  '/submissions/:id/revision',
+  [
+    body('abstract').trim().notEmpty().withMessage('Abstract is required'),
+    body('fileUrl').trim().notEmpty().withMessage('fileUrl is required')
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ success: false, errors: errors.array() });
+      }
 
-    if (!submission) {
-      return res.status(404).json({
-        success: false,
-        message: 'Submission not found'
+      const { abstract, fileUrl } = req.body;
+
+      // Find submission belonging to this author with revision status
+      const submission = await Submission.findOne({
+        _id: req.params.id,
+        authorId: req.user.userId
       });
+
+      if (!submission) {
+        return res.status(404).json({ success: false, message: 'Submission not found' });
+      }
+
+      if (submission.status !== 'revision') {
+        return res.status(400).json({
+          success: false,
+          message: 'Revision can only be submitted when status is "revision"'
+        });
+      }
+
+      // Update submission with revised content
+      submission.abstract = abstract;
+      submission.fileUrl = fileUrl;
+      submission.status = 'under_review'; // Move to under_review for re-evaluation
+      submission.lastUpdatedAt = new Date();
+
+      // Track revision count (optional - for lifecycle display)
+      submission.revisionCount = (submission.revisionCount || 0) + 1;
+
+      await submission.save();
+
+      res.json({
+        success: true,
+        message: 'Revision submitted successfully. Your paper is now under review.',
+        data: submission
+      });
+
+    } catch (error) {
+      console.error('Author revision upload error:', error);
+      res.status(500).json({ success: false, message: 'Error uploading revision', error: error.message });
     }
-
-    submission.paymentStatus = 'completed';
-    await submission.save();
-
-    res.json({
-      success: true,
-      message: 'Payment status updated successfully',
-      data: { submission }
-    });
-
-  } catch (error) {
-    console.error('Update payment error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error updating payment status',
-      error: error.message
-    });
   }
-});
+);
 
 module.exports = router;
+

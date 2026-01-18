@@ -70,12 +70,11 @@ const conferenceSchema = new mongoose.Schema({
   toObject: { virtuals: true }
 });
 
-// Virtual for submission count
-conferenceSchema.virtual('submissionCount', {
-  ref: 'Submission',
+// Virtual for tracks
+conferenceSchema.virtual('tracks', {
+  ref: 'Track',
   localField: '_id',
-  foreignField: 'conferenceId',
-  count: true
+  foreignField: 'conferenceId'
 });
 
 // Index for efficient queries

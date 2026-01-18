@@ -13,17 +13,18 @@ async function checkAndUpdateReviewStatus(submissionId) {
       throw new Error('Submission not found');
     }
 
-    // Count submitted reviews
-    const submittedReviews = await Review.countDocuments({
-      submissionId: submissionId,
-      status: 'submitted'
-    });
+    // Count reviews for this submission (scoped to submission.trackId if present)
+    const reviewQuery = { submissionId: submissionId };
+    if (submission.trackId) reviewQuery.trackId = submission.trackId;
+
+    const submittedReviews = await Review.countDocuments(reviewQuery);
 
     // Update review count
     submission.reviewCount = submittedReviews;
 
     // If all required reviews are completed, update status
-    if (submittedReviews >= submission.requiredReviews && submission.status === 'under_review') {
+    const required = submission.requiredReviews || 3;
+    if (submittedReviews >= required && submission.status === 'under_review') {
       submission.status = 'review_completed';
       submission.lastUpdatedAt = Date.now();
     }
@@ -50,8 +51,10 @@ async function assignReviewers(submissionId, reviewerIds) {
     }
 
     // Add reviewers (avoid duplicates)
-    const uniqueReviewers = [...new Set([...submission.assignedReviewers, ...reviewerIds])];
-    submission.assignedReviewers = uniqueReviewers;
+    const existing = (submission.assignedReviewers || []).map(String);
+    const incoming = (reviewerIds || []).map(String);
+    const unique = Array.from(new Set([...existing, ...incoming]));
+    submission.assignedReviewers = unique;
 
     // Update status if this is first assignment
     if (submission.status === 'submitted') {
@@ -116,15 +119,21 @@ async function getSubmissionWithDetails(submissionId) {
       throw new Error('Submission not found');
     }
 
-    // Get all reviews for this submission
-    const reviews = await Review.find({ submissionId: submissionId })
+    // Get all reviews for this submission, scoped to submission.trackId if available
+    const reviewQuery = { submissionId: submissionId };
+    if (submission.trackId) reviewQuery.trackId = submission.trackId;
+
+    const reviews = await Review.find(reviewQuery)
       .populate('reviewerId', 'name email')
-      .sort({ submittedAt: -1 });
+      .sort({ createdAt: -1 });
+
+    const required = submission.requiredReviews || 3;
+    const completed = reviews.length || submission.reviewCount || 0;
 
     return {
       ...submission.toObject(),
       reviews: reviews,
-      progress: `${submission.reviewCount || 0} / ${submission.requiredReviews || 3} reviews completed`
+      progress: `${completed} / ${required} reviews completed`
     };
   } catch (error) {
     console.error('Error fetching submission details:', error);

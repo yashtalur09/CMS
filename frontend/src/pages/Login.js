@@ -40,20 +40,21 @@ const Login = () => {
     setError('');
     setLoading(true);
 
-    const result = await login(formData.email, formData.password);
+    const res = await login(formData.email, formData.password);
 
-    if (result.success) {
-      // Check if role matches
-      if (roleParam && result.user.role !== roleParam) {
-        setError(`Access denied. This account is registered as ${result.user.role}, not ${roleParam}.`);
-        setLoading(false);
-        return;
-      }
-      navigate(`/${result.user.role}/dashboard`);
-    } else {
-      setError(result.message);
+    if (!res || !res.success) {
+      setError(res?.message || 'Login failed');
       setLoading(false);
+      return;
     }
+
+    // defensive role extraction
+    const role = res.user?.role || res.raw?.user?.role || res.raw?.role || null;
+    if (role === 'organizer') navigate('/organizer/dashboard');
+    else if (role === 'author') navigate('/author/dashboard');
+    else if (role === 'reviewer') navigate('/reviewer/dashboard');
+    else if (role === 'participant') navigate('/participant/dashboard');
+    else navigate('/');
   };
 
   return (

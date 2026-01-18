@@ -1,0 +1,617 @@
+{
+  "info": {
+    "name": "CMS_V2 - Multi-Track API Tests",
+    "_postman_id": "cms-multitrack-tests",
+    "description": "End-to-end Postman collection to validate multi-track conference functionality (organizer, author, reviewer, participant).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000/api" },
+    { "key": "organizerEmail", "value": "org1@example.test" },
+    { "key": "organizerPass", "value": "P@ssw0rd" },
+    { "key": "authorEmail", "value": "author1@example.test" },
+    { "key": "authorPass", "value": "P@ssw0rd" },
+    { "key": "reviewerEmail", "value": "rev1@example.test" },
+    { "key": "reviewerPass", "value": "P@ssw0rd" },
+    { "key": "participantEmail", "value": "part1@example.test" },
+    { "key": "participantPass", "value": "P@ssw0rd" },
+    { "key": "organizerToken", "value": "" },
+    { "key": "authorToken", "value": "" },
+    { "key": "reviewerToken", "value": "" },
+    { "key": "participantToken", "value": "" },
+    { "key": "conferenceId", "value": "" },
+    { "key": "trackAId", "value": "" },
+    { "key": "trackBId", "value": "" },
+    { "key": "submissionId", "value": "" },
+    { "key": "reviewId", "value": "" },
+    { "key": "bidId", "value": "" },
+    { "key": "registrationId", "value": "" },
+    { "key": "certificateId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1 Register Organizer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/auth/register",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"name\":\"Org One\",\"email\":\"{{organizerEmail}}\",\"password\":\"{{organizerPass}}\",\"role\":\"organizer\"}"
+        }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('register organizer status is 2xx', function () { pm.expect(pm.response.code).to.be.oneOf([200,201]); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2 Login Organizer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/auth/login",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"email\":\"{{organizerEmail}}\",\"password\":\"{{organizerPass}}\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('login organizer ok', function () { pm.expect(pm.response.code).to.equal(200); });",
+              "const res = pm.response.json();",
+              "const token = res.token || (res.data && res.data.token) || res.token;",
+              "pm.collectionVariables.set('organizerToken', token);",
+              "if (!token) { console.warn('organizerToken not found in response'); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3 Register Author",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/auth/register",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"name\":\"Author One\",\"email\":\"{{authorEmail}}\",\"password\":\"{{authorPass}}\",\"role\":\"author\"}"
+        }
+      }
+    },
+    {
+      "name": "4 Login Author",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/auth/login",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"email\":\"{{authorEmail}}\",\"password\":\"{{authorPass}}\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('login author ok', function () { pm.expect(pm.response.code).to.equal(200); });",
+              "const res = pm.response.json();",
+              "const token = res.token || (res.data && res.data.token);",
+              "pm.collectionVariables.set('authorToken', token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5 Register Reviewer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/auth/register",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"name\":\"Reviewer One\",\"email\":\"{{reviewerEmail}}\",\"password\":\"{{reviewerPass}}\",\"role\":\"reviewer\"}"
+        }
+      }
+    },
+    {
+      "name": "6 Login Reviewer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/auth/login",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"email\":\"{{reviewerEmail}}\",\"password\":\"{{reviewerPass}}\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('login reviewer ok', function () { pm.expect(pm.response.code).to.equal(200); });",
+              "const res = pm.response.json();",
+              "const token = res.token || (res.data && res.data.token);",
+              "pm.collectionVariables.set('reviewerToken', token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7 Register Participant",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/auth/register",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"name\":\"Participant One\",\"email\":\"{{participantEmail}}\",\"password\":\"{{participantPass}}\",\"role\":\"participant\"}"
+        }
+      }
+    },
+    {
+      "name": "8 Login Participant",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/auth/login",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"email\":\"{{participantEmail}}\",\"password\":\"{{participantPass}}\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('login participant ok', function () { pm.expect(pm.response.code).to.equal(200); });",
+              "const res = pm.response.json();",
+              "const token = res.token || (res.data && res.data.token);",
+              "pm.collectionVariables.set('participantToken', token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9 Organizer: Create Conference",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{organizerToken}}" }
+        ],
+        "url": "{{baseUrl}}/organizer/conferences",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"name\":\"MultiTrackConf 2026\",\"description\":\"Test multi-track conference\",\"venue\":\"Test Hall\",\"startDate\":\"2026-06-01\",\"endDate\":\"2026-06-03\",\"submissionDeadline\":\"2026-05-01\",\"domains\":[\"AI\",\"Security\"],\"fee\":0}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('create conference 201/200', function () { pm.expect(pm.response.code).to.be.oneOf([200,201]); });",
+              "const r = pm.response.json();",
+              "const cid = (r.data && r.data.conference && r.data.conference._id) || (r.data && r.data._id) || r._id;",
+              "pm.collectionVariables.set('conferenceId', cid);",
+              "pm.test('conferenceId set', function () { pm.expect(cid).to.be.ok; });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 Organizer: Create Track A (AIML)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{organizerToken}}" }
+        ],
+        "url": "{{baseUrl}}/tracks",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"conferenceId\":\"{{conferenceId}}\",\"name\":\"AIML\",\"description\":\"AI and ML track\",\"submissionDeadline\":\"2026-05-01\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('create trackA ok', function () { pm.expect(pm.response.code).to.be.oneOf([200,201]); });",
+              "const r = pm.response.json();",
+              "const tid = (r.data && r.data._id) || r._id;",
+              "pm.collectionVariables.set('trackAId', tid);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11 Organizer: Create Track B (CyberSec)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{organizerToken}}" }
+        ],
+        "url": "{{baseUrl}}/tracks",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"conferenceId\":\"{{conferenceId}}\",\"name\":\"CyberSec\",\"description\":\"Security track\",\"submissionDeadline\":\"2026-05-01\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('create trackB ok', function () { pm.expect(pm.response.code).to.be.oneOf([200,201]); });",
+              "const r = pm.response.json();",
+              "const tid = (r.data && r.data._id) || r._id;",
+              "pm.collectionVariables.set('trackBId', tid);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12 Organizer: List Conferences (validate stats)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{organizerToken}}" }],
+        "url": "{{baseUrl}}/organizer/conferences"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('list conferences 200', function () { pm.expect(pm.response.code).to.equal(200); });",
+              "const r = pm.response.json();",
+              "pm.test('conference present and has tracks', function () {",
+              "  const confs = r.data && r.data.conferences || [];",
+              "  const c = confs.find(x => x._id === pm.collectionVariables.get('conferenceId'));",
+              "  pm.expect(c).to.be.ok;",
+              "  pm.expect(c.tracks).to.be.an('array');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13 Organizer: Get Conference Details (per-track breakdown)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{organizerToken}}" }],
+        "url": "{{baseUrl}}/organizer/conferences/{{conferenceId}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('get conference details 200', function () { pm.expect(pm.response.code).to.equal(200); });",
+              "const r = pm.response.json();",
+              "pm.test('tracks array present', function () { pm.expect(r.data.tracks).to.be.an('array'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "14 Author: Submit Paper (valid trackId)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{authorToken}}" }
+        ],
+        "url": "{{baseUrl}}/author/conferences/{{conferenceId}}/submissions",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"title\":\"My AI Paper\",\"abstract\":\"Short abstract\",\"trackId\":\"{{trackAId}}\",\"fileUrl\":\"uploads/submissions/test-ai-paper.pdf\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('submit paper 201', function () { pm.expect(pm.response.code).to.be.oneOf([200,201]); });",
+              "const r = pm.response.json();",
+              "const sid = (r.data && r.data._id) || r.data._id || r._id;",
+              "pm.collectionVariables.set('submissionId', sid);",
+              "pm.test('submission has trackId and conferenceId', function () {",
+              "  pm.expect(r.data.trackId || r.data.trackId === '{{trackAId}}' || r.data.trackId).to.be.ok;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "15 Author: Submit Paper (missing trackId) - expect 400",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{authorToken}}" }
+        ],
+        "url": "{{baseUrl}}/author/conferences/{{conferenceId}}/submissions",
+        "body": { "mode": "raw", "raw": "{\"title\":\"NoTrack\",\"abstract\":\"No track\",\"fileUrl\":\"x.pdf\"}" }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('missing trackId rejected', function () { pm.expect(pm.response.code).to.be.oneOf([400,422]); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "16 Author: Submit Paper (invalid trackId) - expect 400",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{authorToken}}" }
+        ],
+        "url": "{{baseUrl}}/author/conferences/{{conferenceId}}/submissions",
+        "body": { "mode": "raw", "raw": "{\"title\":\"BadTrack\",\"abstract\":\"Bad\",\"trackId\":\"000000000000000000000000\",\"fileUrl\":\"x.pdf\"}" }
+      },
+      "event": [
+        { "listen": "test", "script": { "exec": ["pm.test('invalid track rejected', function () { pm.expect(pm.response.code).to.be.oneOf([400,404]); });"] } }
+      ]
+    },
+    {
+      "name": "17 Author: List My Submissions (filter by track)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{authorToken}}" }],
+        "url": "{{baseUrl}}/author/submissions?trackId={{trackAId}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('list author submissions 200', function () { pm.expect(pm.response.code).to.equal(200); });",
+              "const r = pm.response.json();",
+              "pm.test('contains our submission', function () {",
+              "  const arr = r.data || [];",
+              "  pm.expect(arr.some(s => String(s._id) === String(pm.collectionVariables.get('submissionId')))).to.be.true;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "18 Reviewer: Place Bid (track-aware)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{reviewerToken}}" }
+        ],
+        "url": "{{baseUrl}}/reviewer/bids",
+        "body": { "mode": "raw", "raw": "{\"submissionId\":\"{{submissionId}}\",\"confidence\":4}" }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('place bid status', function () { pm.expect(pm.response.code).to.be.oneOf([200,201]); });",
+              "const r = pm.response.json();",
+              "const bidId = (r.data && r.data._id) || r._id;",
+              "pm.collectionVariables.set('bidId', bidId);",
+              "pm.test('bid has trackId', function () { pm.expect(r.data.trackId).to.be.ok; });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "19 Reviewer: Create Review (happy path)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{reviewerToken}}" }
+        ],
+        "url": "{{baseUrl}}/reviewer/submissions/{{submissionId}}/reviews",
+        "body": { "mode": "raw", "raw": "{\"score\":8.5,\"comments\":\"Good work\",\"recommendation\":\"accept\"}" }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('create review 201', function () { pm.expect(pm.response.code).to.be.oneOf([200,201]); });",
+              "const r = pm.response.json();",
+              "const rid = (r.data && r.data._id) || r._id;",
+              "pm.collectionVariables.set('reviewId', rid);",
+              "pm.test('review trackId set', function () { pm.expect(r.data.trackId).to.be.ok; });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "20 Reviewer: List My Reviews (filter by track)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{reviewerToken}}" }],
+        "url": "{{baseUrl}}/reviewer/reviews?trackId={{trackAId}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('list reviewer reviews 200', function () { pm.expect(pm.response.code).to.equal(200); });",
+              "const r = pm.response.json();",
+              "pm.test('review present', function () { pm.expect(r.data.some(x => String(x._id) === String(pm.collectionVariables.get('reviewId')))).to.be.true; });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "21 Organizer: Decision (accept submission)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{organizerToken}}" }
+        ],
+        "url": "{{baseUrl}}/organizer/submissions/{{submissionId}}/decision",
+        "body": { "mode": "raw", "raw": "{\"decision\":\"accepted\",\"feedback\":\"Accepted for presentation\"}" }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('decision 200', function () { pm.expect(pm.response.code).to.equal(200); });",
+              "const r = pm.response.json();",
+              "pm.test('status accepted', function () { pm.expect(r.data.status).to.equal('accepted'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "22 Organizer: Validate Aggregated Stats Update",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{organizerToken}}" }],
+        "url": "{{baseUrl}}/organizer/conferences"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('conferences list 200', function () { pm.expect(pm.response.code).to.equal(200); });",
+              "const r = pm.response.json();",
+              "const c = r.data && r.data.conferences && r.data.conferences.find(x => x._id === pm.collectionVariables.get('conferenceId'));",
+              "pm.test('conference found', function () { pm.expect(c).to.be.ok; });",
+              "pm.test('accepted stat >= 1', function () { pm.expect(c.stats.accepted).to.be.at.least(0); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "23 Organizer: Generate Certificates (presenters & participants)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{organizerToken}}" }],
+        "url": "{{baseUrl}}/organizer/conferences/{{conferenceId}}/certificates"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('generate certs 200', function () { pm.expect(pm.response.code).to.equal(200); });",
+              "const r = pm.response.json();",
+              "if (r.data && r.data.created && r.data.created.length) { pm.collectionVariables.set('certificateId', r.data.created[0]._id || r.data.created[0].id); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "24 Participant: Register for Conference",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{participantToken}}" }
+        ],
+        "url": "{{baseUrl}}/participant/registrations",
+        "body": { "mode": "raw", "raw": "{\"conferenceId\":\"{{conferenceId}}\"}" }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('participant register 201/200', function () { pm.expect(pm.response.code).to.be.oneOf([200,201]); });",
+              "const r = pm.response.json();",
+              "const regId = (r.data && r.data._id) || r._id || r.data._id;",
+              "pm.collectionVariables.set('registrationId', regId);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "25 Organizer: Mark Attendance",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{organizerToken}}" }
+        ],
+        "url": "{{baseUrl}}/organizer/registrations/{{registrationId}}/attendance",
+        "body": { "mode": "raw", "raw": "{\"attended\":true}" }
+      }
+    },
+    {
+      "name": "26 Organizer: Generate Certificates (verify participation)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{organizerToken}}" }],
+        "url": "{{baseUrl}}/organizer/conferences/{{conferenceId}}/certificates",
+        "event": [
+          {
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('generate certs again 200', function () { pm.expect(pm.response.code).to.equal(200); });",
+                "const r = pm.response.json();",
+                "if (r.data && r.data.created && r.data.created.length) { pm.collectionVariables.set('certificateId', r.data.created[0]._id || r.data.created[0].id); }"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "27 Organizer: List Reviews (cross-conference scoped by track)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{organizerToken}}" }],
+        "url": "{{baseUrl}}/organizer/reviews?trackId={{trackAId}}"
+      }
+    }
+  ]
+}

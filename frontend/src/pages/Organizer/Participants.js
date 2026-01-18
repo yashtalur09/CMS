@@ -222,7 +222,7 @@ const Participants = () => {
                         <td className="px-4 py-3 whitespace-nowrap">
                           <Badge variant={
                             registration.paymentStatus === 'completed' ? 'success' :
-                            registration.paymentStatus === 'not_required' ? 'default' : 'warning'
+                              registration.paymentStatus === 'not_required' ? 'default' : 'warning'
                           }>
                             {registration.paymentStatus === 'not_required' ? 'Confirmed' : registration.paymentStatus}
                           </Badge>

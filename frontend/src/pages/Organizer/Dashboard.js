@@ -1,16 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AuthContext } from '../../context/AuthContext';
+import { getOrganizerDashboard } from '../../utils/api';
 import Navbar from '../../components/Navbar';
 import Card from '../../components/Card';
 import Button from '../../components/Button';
 import Badge from '../../components/Badge';
 import Loading from '../../components/Loading';
-import api from '../../utils/api';
 
 const OrganizerDashboard = () => {
   const navigate = useNavigate();
+  const { user } = useContext(AuthContext);
   const [conferences, setConferences] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchConferences();
@@ -18,10 +21,16 @@ const OrganizerDashboard = () => {
 
   const fetchConferences = async () => {
     try {
-      const response = await api.get('/organizer/conferences');
-      setConferences(response.data.data.conferences);
-    } catch (error) {
-      console.error('Error fetching conferences:', error);
+      setLoading(true);
+      setError(null);
+      const response = await getOrganizerDashboard();
+      // Handle nested response structure: response.data.conferences or response.conferences
+      const data = response.data || response;
+      const conferencesList = data.conferences || data || [];
+      setConferences(Array.isArray(conferencesList) ? conferencesList : []);
+    } catch (err) {
+      console.error('Error fetching conferences:', err);
+      setError(err.response?.data?.message || 'Failed to load conferences');
     } finally {
       setLoading(false);
     }
@@ -31,7 +40,7 @@ const OrganizerDashboard = () => {
     return new Date(date).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
-      day: 'numeric'
+      day: 'numeric',
     });
   };
 
@@ -52,12 +61,27 @@ const OrganizerDashboard = () => {
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Organizer Dashboard</h1>
-            <p className="text-gray-600 mt-1">Manage your conferences and submissions</p>
+            <p className="text-gray-600 mt-1">Welcome, {user?.name || 'Organizer'}</p>
           </div>
-          <Button onClick={() => navigate('/organizer/create-conference')}>
+          <Button
+            onClick={() => navigate('/organizer/create-conference')}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
             + Create Conference
           </Button>
         </div>
+
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-800">{error}</p>
+            <button
+              onClick={fetchConferences}
+              className="text-red-600 hover:text-red-800 font-medium mt-2"
+            >
+              Try Again
+            </button>
+          </div>
+        )}
 
         {/* Conferences Grid */}
         {conferences.length === 0 ? (
@@ -69,7 +93,10 @@ const OrganizerDashboard = () => {
             <p className="text-gray-600 mb-6">
               Create your first conference to get started
             </p>
-            <Button onClick={() => navigate('/organizer/create-conference')}>
+            <Button
+              onClick={() => navigate('/organizer/create-conference')}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
               Create Conference
             </Button>
           </Card>
@@ -79,43 +106,42 @@ const OrganizerDashboard = () => {
               <Card
                 key={conference._id}
                 hoverable
+                className="flex flex-col cursor-pointer hover:shadow-lg transition"
                 onClick={() => navigate(`/organizer/manage-conference/${conference._id}`)}
               >
                 <div className="flex justify-between items-start mb-3">
-                  <h3 className="text-xl font-bold text-gray-900 line-clamp-2">
+                  <h3 className="text-lg font-bold text-gray-900 line-clamp-2 flex-1">
                     {conference.name}
                   </h3>
-                  <Badge variant={conference.status === 'active' ? 'success' : 'default'}>
-                    {conference.status}
+                  <Badge variant={conference.status === 'active' ? 'success' : 'info'}>
+                    {conference.status || 'active'}
                   </Badge>
                 </div>
 
-                <p className="text-gray-600 text-sm line-clamp-3 mb-4">
+                <p className="text-gray-600 text-sm line-clamp-2 mb-4">
                   {conference.description}
                 </p>
 
                 <div className="space-y-2 text-sm text-gray-700 mb-4">
                   <div className="flex items-center">
-                    <span className="font-medium w-24">Venue:</span>
-                    <span>{conference.venue}</span>
+                    <span className="font-medium w-20">Venue:</span>
+                    <span className="line-clamp-1">{conference.venue}</span>
                   </div>
                   <div className="flex items-center">
-                    <span className="font-medium w-24">Date:</span>
-                    <span>
-                      {formatDate(conference.startDate)} - {formatDate(conference.endDate)}
-                    </span>
+                    <span className="font-medium w-20">Date:</span>
+                    <span>{formatDate(conference.startDate)}</span>
                   </div>
                   <div className="flex items-center">
-                    <span className="font-medium w-24">Deadline:</span>
+                    <span className="font-medium w-20">Deadline:</span>
                     <span>{formatDate(conference.submissionDeadline)}</span>
                   </div>
                 </div>
 
                 {/* Stats */}
-                <div className="grid grid-cols-3 gap-2 pt-4 border-t">
+                <div className="grid grid-cols-3 gap-2 pt-4 border-t flex-grow">
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-primary-600">
-                      {conference.stats?.submissions || 0}
+                    <div className="text-2xl font-bold text-blue-600">
+                      {conference.stats?.total || 0}
                     </div>
                     <div className="text-xs text-gray-600">Submissions</div>
                   </div>
@@ -136,7 +162,7 @@ const OrganizerDashboard = () => {
                 <div className="mt-4 pt-4 border-t space-y-2">
                   <Button
                     size="sm"
-                    fullWidth
+                    className="w-full bg-blue-600 hover:bg-blue-700"
                     onClick={(e) => {
                       e.stopPropagation();
                       navigate(`/organizer/manage-conference/${conference._id}`);
@@ -147,7 +173,7 @@ const OrganizerDashboard = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    fullWidth
+                    className="w-full"
                     onClick={(e) => {
                       e.stopPropagation();
                       navigate(`/organizer/submissions/${conference._id}`);

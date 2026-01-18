@@ -1,39 +1,54 @@
 const mongoose = require('mongoose');
 
 const bidSchema = new mongoose.Schema({
-  conferenceId: {
+  reviewerId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Conference',
-    required: [true, 'Conference ID is required']
+    ref: 'User',
+    required: [true, 'Reviewer ID is required']
   },
   submissionId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Submission',
     required: [true, 'Submission ID is required']
   },
-  reviewerId: {
+  trackId: { // NEW: track-scoped reference (optional)
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: [true, 'Reviewer ID is required']
+    ref: 'Track',
+    required: false
   },
-  bidValue: {
+  confidence: {
     type: Number,
-    required: [true, 'Bid value is required'],
-    enum: {
-      values: [1, -1],
-      message: 'Bid value must be 1 (interested) or -1 (not interested)'
-    }
+    default: 0,
+    min: [0, 'Confidence must be at least 0'],
+    max: [10, 'Confidence cannot exceed 10']
+  },
+  status: {
+    type: String,
+    enum: ['PENDING', 'APPROVED', 'REJECTED', 'WITHDRAWN'],
+    default: 'PENDING'
+  },
+  decision: {
+    decidedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    decidedAt: { type: Date },
+    reason: { type: String, maxlength: [1000, 'Reason cannot exceed 1000 characters'] }
   },
   createdAt: {
     type: Date,
     default: Date.now
   }
 }, {
-  timestamps: true
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
 });
 
+// indexes for common queries
+bidSchema.index({ reviewerId: 1 });
+bidSchema.index({ submissionId: 1 });
+bidSchema.index({ trackId: 1 });
+bidSchema.index({ status: 1 });
+
 // Compound index to prevent duplicate bids
-bidSchema.index({ submissionId: 1, reviewerId: 1 }, { unique: true });
-bidSchema.index({ conferenceId: 1, reviewerId: 1 });
+bidSchema.index({ reviewerId: 1, submissionId: 1 }, { unique: true });
 
 module.exports = mongoose.model('Bid', bidSchema);

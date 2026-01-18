@@ -5,54 +5,73 @@ import Card from '../../components/Card';
 import Badge from '../../components/Badge';
 import Button from '../../components/Button';
 import Loading from '../../components/Loading';
+import Select from '../../components/Select';
 import Modal from '../../components/Modal';
-import api from '../../utils/api';
+import { getTracks, getConferenceSubmissionsReviewer, placeBid } from '../../utils/api';
 
 const ConferenceSubmissions = () => {
-  const { id } = useParams();
+  const { id: conferenceId } = useParams();
   const navigate = useNavigate();
   const [submissions, setSubmissions] = useState([]);
+  const [tracks, setTracks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [bidding, setBidding] = useState(false);
-  const [selectedSubmission, setSelectedSubmission] = useState(null);
-  const [showPdfModal, setShowPdfModal] = useState(false);
-  const [pdfUrl, setPdfUrl] = useState('');
+  const [error, setError] = useState(null);
+  const [trackFilter, setTrackFilter] = useState('');
+  const [bidding, setBidding] = useState(null);
 
-  const API_BASE_URL = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5000';
+  // Bid modal state
+  const [showBidModal, setShowBidModal] = useState(false);
+  const [selectedSubmission, setSelectedSubmission] = useState(null);
+  const [selectedConfidence, setSelectedConfidence] = useState(5);
 
   useEffect(() => {
-    fetchSubmissions();
-  }, [id]);
+    fetchData();
+  }, [conferenceId, trackFilter]);
 
-  const fetchSubmissions = async () => {
+  const fetchData = async () => {
     try {
-      const response = await api.get(`/reviewer/conferences/${id}/submissions`);
-      const data = response.data.data || [];
-      console.log('Fetched submissions:', data); // Debug log
-      setSubmissions(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error('Error fetching submissions:', error);
-      console.error('Error details:', error.response?.data);
+      setLoading(true);
+      setError(null);
+      const [subsRes, tracksRes] = await Promise.all([
+        getConferenceSubmissionsReviewer(conferenceId, { trackId: trackFilter || undefined }),
+        getTracks(conferenceId)
+      ]);
+      setSubmissions(subsRes.data || subsRes || []);
+      setTracks(tracksRes.data || tracksRes || []);
+    } catch (err) {
+      console.error('Error fetching data:', err);
+      setError(err.response?.data?.message || 'Failed to load submissions');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleBid = async (submissionId) => {
+  const openBidModal = (submission) => {
+    setSelectedSubmission(submission);
+    setSelectedConfidence(5);
+    setShowBidModal(true);
+  };
+
+  const closeBidModal = () => {
+    setShowBidModal(false);
+    setSelectedSubmission(null);
+    setSelectedConfidence(5);
+  };
+
+  const handlePlaceBid = async () => {
+    if (!selectedSubmission) return;
+
     try {
-      setBidding(true);
-      const response = await api.post('/reviewer/bids', {
-        conferenceId: id,
-        submissionId
-      });
-      
-      alert(response.data.message || 'Bid placed successfully! Paper assigned to you.');
-      fetchSubmissions(); // Refresh the list
-    } catch (error) {
-      console.error('Error placing bid:', error);
-      alert(error.response?.data?.message || 'Failed to place bid');
+      setBidding(selectedSubmission._id);
+      await placeBid(selectedSubmission._id, selectedConfidence);
+      closeBidModal();
+      // Refresh data to show updated bid status
+      await fetchData();
+    } catch (err) {
+      console.error('Error placing bid:', err);
+      alert(err.response?.data?.message || 'Failed to place bid');
     } finally {
-      setBidding(false);
+      setBidding(null);
     }
   };
 
@@ -60,9 +79,7 @@ const ConferenceSubmissions = () => {
     return new Date(date).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      day: 'numeric'
     });
   };
 
@@ -70,11 +87,21 @@ const ConferenceSubmissions = () => {
     const variants = {
       submitted: 'info',
       under_review: 'warning',
-      review_completed: 'success',
       accepted: 'success',
-      rejected: 'danger'
+      rejected: 'danger',
+      approved: 'success'
     };
-    return variants[status] || 'default';
+    const statusText = status?.replace('_', ' ') || 'submitted';
+    return <Badge variant={variants[status] || 'default'}>{statusText.toUpperCase()}</Badge>;
+  };
+
+  const getConfidenceLabel = (value) => {
+    const labels = {
+      1: 'Low - Not very familiar with this topic',
+      2: 'Medium - Somewhat familiar with this topic',
+      3: 'High - Very familiar with this topic'
+    };
+    return labels[value] || '';
   };
 
   if (loading) {
@@ -90,145 +117,104 @@ const ConferenceSubmissions = () => {
     <>
       <Navbar />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex justify-between items-center mb-8">
+        <div className="mb-6">
+          <Button variant="outline" size="sm" onClick={() => navigate('/reviewer/browse-conferences')}>
+            ← Back to Conferences
+          </Button>
+        </div>
+
+        <div className="flex justify-between items-start mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Approved Submissions</h1>
-            <p className="text-gray-600 mt-1">
-              {submissions.length > 0 
-                ? `${submissions.length} paper${submissions.length !== 1 ? 's' : ''} available for bidding`
-                : 'Bid on papers you\'re interested in reviewing'
-              }
-            </p>
+            <h1 className="text-3xl font-bold text-gray-900">Conference Submissions</h1>
+            <p className="text-gray-600 mt-1">Browse and bid on papers to review</p>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => navigate('/reviewer/browse-conferences')}>
-              Back to Conferences
-            </Button>
-            <Button variant="primary" onClick={() => navigate('/reviewer/assigned-papers')}>
-              My Assigned Papers
-            </Button>
+          <div className="text-right">
+            <p className="text-2xl font-bold text-blue-600">{submissions.length}</p>
+            <p className="text-sm text-gray-600">Submissions</p>
           </div>
         </div>
 
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-800">{error}</p>
+            <button
+              onClick={fetchData}
+              className="text-red-600 hover:text-red-800 font-medium mt-2"
+            >
+              Try Again
+            </button>
+          </div>
+        )}
+
+        {/* Track Filter */}
+        <div className="mb-6">
+          <div className="w-64">
+            <Select value={trackFilter} onChange={(e) => setTrackFilter(e.target.value)}>
+              <option value="">All Tracks</option>
+              {tracks.map(t => (
+                <option key={t._id} value={t._id}>{t.name}</option>
+              ))}
+            </Select>
+          </div>
+        </div>
+
+        {/* Submissions Grid */}
         {submissions.length === 0 ? (
           <Card className="text-center py-12">
-            <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            <p className="text-gray-600 text-lg mb-2">No approved submissions available</p>
-            <p className="text-gray-500 text-sm">The organizer hasn't approved any papers for review yet.</p>
-            <p className="text-gray-500 text-sm mt-1">Check back later or browse other conferences.</p>
-            <Button className="mt-4" variant="outline" onClick={() => navigate('/reviewer/browse-conferences')}>
-              Browse Other Conferences
-            </Button>
+            <div className="text-6xl mb-4">📄</div>
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">No Submissions Available</h3>
+            <p className="text-gray-600">
+              {trackFilter ? 'No submissions found for this track' : 'No submissions available for bidding'}
+            </p>
           </Card>
         ) : (
-          <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {submissions.map((submission) => (
-              <Card key={submission._id}>
+              <Card key={submission._id} hoverable>
                 <div className="flex justify-between items-start mb-3">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-bold text-gray-900 mb-1">
-                      {submission.title}
-                    </h3>
-                    <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
-                      <span className="font-medium text-blue-600">{submission.authorId?.name}</span>
-                      <span>•</span>
-                      <span>{submission.authorId?.email}</span>
-                    </div>
-                    {submission.theme && (
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge variant="info" className="text-xs">
-                          Theme: {submission.theme}
-                        </Badge>
-                      </div>
-                    )}
+                  <h3 className="text-lg font-bold text-gray-900 line-clamp-2 flex-1 pr-2">
+                    {submission.title}
+                  </h3>
+                  {getStatusBadge(submission.status)}
+                </div>
+
+                <div className="space-y-2 mb-4">
+                  {submission.trackId?.name && (
+                    <p className="text-sm text-gray-600">
+                      <span className="font-medium">Track:</span>{' '}
+                      <Badge variant="info" className="text-xs">{submission.trackId.name}</Badge>
+                    </p>
+                  )}
+                  {submission.authorId?.name && (
+                    <p className="text-sm text-gray-600">
+                      <span className="font-medium">Author:</span> {submission.authorId.name}
+                    </p>
+                  )}
+                  <p className="text-sm text-gray-500">
+                    <span className="font-medium">Submitted:</span>{' '}
+                    {formatDate(submission.createdAt || submission.submittedAt)}
+                  </p>
+                </div>
+
+                {submission.abstract && (
+                  <div className="text-sm text-gray-600 mb-4 bg-gray-50 p-3 rounded max-h-32 overflow-y-auto">
+                    {submission.abstract}
                   </div>
-                  <div className="flex flex-col gap-2 items-end">
-                    <Badge variant={getStatusBadge(submission.status)}>
-                      {submission.status.replace('_', ' ').toUpperCase()}
+                )}
+
+                <div className="flex gap-2">
+                  {submission.hasBid ? (
+                    <Badge variant="success" className="w-full text-center py-2">
+                      ✓ Bid Placed
                     </Badge>
-                    {submission.isAssigned && (
-                      <Badge variant="success">✓ Assigned to You</Badge>
-                    )}
-                    {submission.hasBid && !submission.isAssigned && (
-                      <Badge variant="warning">⏱ Bid Placed</Badge>
-                    )}
-                  </div>
-                </div>
-
-                <p className="text-sm text-gray-600 mb-3 line-clamp-2">
-                  {submission.abstract}
-                </p>
-
-                {/* Paper File Info */}
-                <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2">
-                  <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  <div className="flex-1">
-                    <p className="text-xs font-medium text-blue-900">Paper Document Available</p>
-                    <p className="text-xs text-blue-700">{submission.fileUrl?.split('/').pop()}</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3 text-sm">
-                  <div>
-                    <p className="text-gray-500 text-xs">Submitted</p>
-                    <p className="font-medium text-gray-900 text-xs">{formatDate(submission.submittedAt)}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500 text-xs">Reviewers Needed</p>
-                    <p className="font-medium text-gray-900">{submission.spotsRemaining || 0} spots left</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500 text-xs">Progress</p>
-                    <p className="font-medium text-gray-900">{submission.reviewCount || 0} / {submission.requiredReviews || 3}</p>
-                  </div>
-                  {submission.bidTime && (
-                    <div>
-                      <p className="text-gray-500 text-xs">Your Bid Time</p>
-                      <p className="font-medium text-green-700 text-xs">{formatDate(submission.bidTime)}</p>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex gap-2 pt-2">
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    onClick={() => {
-                      setPdfUrl(`${API_BASE_URL}${submission.fileUrl}`);
-                      setSelectedSubmission(submission);
-                      setShowPdfModal(true);
-                    }}
-                  >
-                    Preview Paper
-                  </Button>
-                  <a
-                    href={`${API_BASE_URL}${submission.fileUrl}`}
-                    download
-                    className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 border border-blue-600 hover:border-blue-700 rounded-lg transition-colors"
-                  >
-                    Download
-                  </a>
-                  {!submission.isAssigned && !submission.hasBid && submission.spotsRemaining > 0 && (
+                  ) : (
                     <Button
                       size="sm"
-                      variant="success"
-                      onClick={() => handleBid(submission._id)}
-                      disabled={bidding}
+                      fullWidth
+                      onClick={() => openBidModal(submission)}
+                      disabled={bidding === submission._id}
                     >
-                      {bidding ? 'Bidding...' : 'Bid for This Paper'}
-                    </Button>
-                  )}
-                  {submission.isAssigned && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => navigate(`/reviewer/review/${submission._id}`)}
-                    >
-                      Go to Review
+                      {bidding === submission._id ? 'Placing Bid...' : 'Place Bid'}
                     </Button>
                   )}
                 </div>
@@ -238,74 +224,93 @@ const ConferenceSubmissions = () => {
         )}
       </div>
 
-      {/* PDF Preview Modal */}
+      {/* Bid Confidence Modal */}
       <Modal
-        isOpen={showPdfModal}
-        onClose={() => {
-          setShowPdfModal(false);
-          setPdfUrl('');
-        }}
-        title={selectedSubmission ? `${selectedSubmission.title} - ${selectedSubmission.authorId?.name}` : 'Paper Preview'}
-        size="large"
+        isOpen={showBidModal}
+        onClose={closeBidModal}
+        title="Place Bid"
+        size="medium"
       >
         {selectedSubmission && (
           <div className="space-y-4">
-            <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-              <div>
-                <p className="text-sm font-medium text-gray-900">Author: {selectedSubmission.authorId?.name}</p>
-                <p className="text-xs text-gray-600">{selectedSubmission.authorId?.email}</p>
-                {selectedSubmission.theme && (
-                  <p className="text-xs text-gray-600 mt-1">Theme: {selectedSubmission.theme}</p>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <a
-                  href={pdfUrl}
-                  download
-                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
-                >
-                  Download PDF
-                </a>
-                <a
-                  href={pdfUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-4 py-2 text-sm font-medium text-blue-600 border border-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                >
-                  Open in New Tab
-                </a>
-              </div>
-            </div>
-
-            <div className="border rounded-lg overflow-hidden" style={{ height: '70vh' }}>
-              <iframe
-                src={pdfUrl}
-                className="w-full h-full"
-                title="Paper Preview"
-              />
-            </div>
-
-            <div className="flex justify-end gap-2">
-              {!selectedSubmission.isAssigned && !selectedSubmission.hasBid && selectedSubmission.spotsRemaining > 0 && (
-                <Button
-                  variant="success"
-                  onClick={() => {
-                    setShowPdfModal(false);
-                    handleBid(selectedSubmission._id);
-                  }}
-                  disabled={bidding}
-                >
-                  {bidding ? 'Bidding...' : 'Bid for This Paper'}
-                </Button>
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2">
+                {selectedSubmission.title}
+              </h3>
+              {selectedSubmission.trackId?.name && (
+                <p className="text-sm text-gray-600">
+                  <span className="font-medium">Track:</span> {selectedSubmission.trackId.name}
+                </p>
               )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Your Confidence Level
+              </label>
+              <p className="text-xs text-gray-500 mb-4">
+                Rate your expertise in the paper's subject area (1 = Low, 10 = Expert)
+              </p>
+
+              {/* Slider */}
+              <div className="mb-4">
+                <input
+                  type="range"
+                  min="1"
+                  max="10"
+                  value={selectedConfidence}
+                  onChange={(e) => setSelectedConfidence(parseInt(e.target.value))}
+                  className="w-full h-3 bg-gradient-to-r from-red-400 via-yellow-400 to-green-500 rounded-lg appearance-none cursor-pointer"
+                  style={{
+                    WebkitAppearance: 'none',
+                  }}
+                />
+              </div>
+
+              {/* Scale numbers */}
+              <div className="flex justify-between text-xs text-gray-500 mb-4 px-1">
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(num => (
+                  <button
+                    key={num}
+                    type="button"
+                    onClick={() => setSelectedConfidence(num)}
+                    className={`w-7 h-7 rounded-full flex items-center justify-center font-medium transition-all ${selectedConfidence === num
+                      ? 'bg-blue-600 text-white shadow-md scale-110'
+                      : 'hover:bg-gray-200'
+                      }`}
+                  >
+                    {num}
+                  </button>
+                ))}
+              </div>
+
+              {/* Selected value display */}
+              <div className={`text-center p-3 rounded-lg ${selectedConfidence <= 3 ? 'bg-red-50 border border-red-200' :
+                selectedConfidence <= 6 ? 'bg-yellow-50 border border-yellow-200' :
+                  'bg-green-50 border border-green-200'
+                }`}>
+                <span className="text-2xl font-bold">{selectedConfidence}</span>
+                <span className="text-gray-600 text-sm ml-2">
+                  / 10 - {
+                    selectedConfidence <= 3 ? 'Low expertise' :
+                      selectedConfidence <= 6 ? 'Moderate expertise' :
+                        selectedConfidence <= 8 ? 'High expertise' :
+                          'Expert level'
+                  }
+                </span>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-4">
               <Button
-                variant="outline"
-                onClick={() => {
-                  setShowPdfModal(false);
-                  setPdfUrl('');
-                }}
+                onClick={handlePlaceBid}
+                disabled={bidding === selectedSubmission._id}
+                fullWidth
               >
-                Close
+                {bidding === selectedSubmission._id ? 'Placing Bid...' : 'Confirm Bid'}
+              </Button>
+              <Button variant="outline" onClick={closeBidModal}>
+                Cancel
               </Button>
             </div>
           </div>

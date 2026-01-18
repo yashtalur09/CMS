@@ -24,7 +24,8 @@ const MyAssignedPapers = () => {
 
   const fetchAssignedSubmissions = async () => {
     try {
-      const response = await api.get('/reviewer/assigned-submissions');
+      // Use bids endpoint - bid submissions are effectively assigned to reviewers
+      const response = await api.get('/reviewer/bids');
       setSubmissions(response.data.data || []);
     } catch (error) {
       console.error('Error fetching submissions:', error);

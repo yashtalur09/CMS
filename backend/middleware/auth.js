@@ -17,7 +17,7 @@ const auth = async (req, res, next) => {
 
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
+
     // Attach user info to request
     req.user = {
       userId: decoded.userId,
@@ -59,10 +59,14 @@ const authorize = (...roles) => {
       });
     }
 
-    if (!roles.includes(req.user.role)) {
+    // Case-insensitive role comparison
+    const userRole = (req.user.role || '').toLowerCase();
+    const allowedRoles = roles.map(r => r.toLowerCase());
+
+    if (!allowedRoles.includes(userRole)) {
       return res.status(403).json({
         success: false,
-        message: `Access denied. Required role: ${roles.join(' or ')}`
+        message: `Access denied. Required role: ${roles.join(' or ')}. Your role: ${req.user.role || 'none'}`
       });
     }
 

@@ -15,6 +15,8 @@ import OrganizerDashboard from './pages/Organizer/Dashboard';
 import CreateConference from './pages/Organizer/CreateConference';
 import ManageConference from './pages/Organizer/ManageConference';
 import ViewSubmissions from './pages/Organizer/ViewSubmissions';
+import ManageBids from './pages/Organizer/ManageBids';
+import ManageAssignments from './pages/Organizer/ManageAssignments';
 
 // Author Pages
 import AuthorDashboard from './pages/Author/Dashboard';
@@ -22,6 +24,7 @@ import DiscoverConferences from './pages/Author/DiscoverConferences';
 import ConferenceDetails from './pages/Author/ConferenceDetails';
 import SubmitPaper from './pages/Author/SubmitPaper';
 import MySubmissions from './pages/Author/MySubmissions';
+import SubmissionDetails from './pages/Author/SubmissionDetails';
 
 // Reviewer Pages
 import ReviewerDashboard from './pages/Reviewer/Dashboard';
@@ -31,6 +34,7 @@ import MyAssignedPapers from './pages/Reviewer/BrowseConferences';
 import BidSubmissions from './pages/Reviewer/BidSubmissions';
 import ReviewPaper from './pages/Reviewer/ReviewPaper';
 import MyReviews from './pages/Reviewer/MyReviews';
+import MyAssignments from './pages/Reviewer/MyAssignments';
 
 // Participant Pages
 import ParticipantDashboard from './pages/Participant/Dashboard';
@@ -97,6 +101,30 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/organizer/conferences/:conferenceId/bids"
+              element={
+                <ProtectedRoute allowedRoles={['organizer']}>
+                  <ManageBids />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/organizer/conferences/:conferenceId/assignments"
+              element={
+                <ProtectedRoute allowedRoles={['organizer']}>
+                  <ManageAssignments />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/organizer/conference/:conferenceId"
+              element={
+                <ProtectedRoute allowedRoles={['organizer']}>
+                  <ManageConference />
+                </ProtectedRoute>
+              }
+            />
 
             {/* Author Routes */}
             <Route
@@ -136,6 +164,14 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={['author']}>
                   <MySubmissions />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/author/submissions/:id"
+              element={
+                <ProtectedRoute allowedRoles={['author']}>
+                  <SubmissionDetails />
                 </ProtectedRoute>
               }
             />
@@ -210,6 +246,22 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={['reviewer']}>
                   <MyReviews />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/reviewer/bids"
+              element={
+                <ProtectedRoute allowedRoles={['reviewer']}>
+                  <BidSubmissions />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/reviewer/assignments"
+              element={
+                <ProtectedRoute allowedRoles={['reviewer']}>
+                  <MyAssignments />
                 </ProtectedRoute>
               }
             />

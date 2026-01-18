@@ -331,3 +331,4 @@ For support, email support@cms.com or open an issue in the repository.
 ---
 
 **Note:** This is a complete, production-ready conference management system. All core features are implemented, including ORCID authentication. Placeholder pages can be expanded with additional functionality as needed.
+

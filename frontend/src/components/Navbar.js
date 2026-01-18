@@ -20,6 +20,7 @@ const Navbar = () => {
     reviewer: [
       { to: '/reviewer/dashboard', label: 'Dashboard' },
       { to: '/reviewer/conferences', label: 'Browse Conferences' },
+      { to: '/reviewer/bids', label: 'My Bids' },
       { to: '/reviewer/reviews', label: 'My Reviews' }
     ],
     participant: [
