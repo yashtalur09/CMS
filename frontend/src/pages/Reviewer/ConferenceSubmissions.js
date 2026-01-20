@@ -20,6 +20,7 @@ const ConferenceSubmissions = () => {
   const [error, setError] = useState(null);
   const [trackFilter, setTrackFilter] = useState('');
   const [bidding, setBidding] = useState(null);
+  const [showAllPapers, setShowAllPapers] = useState(false); // Toggle state: false = recommended only
 
   // Bid modal state
   const [showBidModal, setShowBidModal] = useState(false);
@@ -33,26 +34,35 @@ const ConferenceSubmissions = () => {
     return domains.map(d => d.toLowerCase().trim());
   }, [user]);
 
-  // Filter submissions based on expertise domains
+  // Check if a submission matches reviewer's expertise
+  const matchesExpertise = useCallback((submission) => {
+    if (reviewerExpertise.length === 0) return false;
+    
+    const trackName = submission.trackId?.name || submission.track || '';
+    const normalizedTrack = trackName.toLowerCase().trim();
+    
+    return reviewerExpertise.some(expertise => {
+      return normalizedTrack === expertise || 
+             normalizedTrack.includes(expertise) ||
+             expertise.includes(normalizedTrack);
+    });
+  }, [reviewerExpertise]);
+
+  // Filter submissions based on toggle and expertise domains
   const filteredSubmissions = useMemo(() => {
-    if (reviewerExpertise.length === 0) {
-      // If no expertise, show all submissions (or could return empty)
-      return submissions;
+    // If toggle is OFF (showAllPapers = false), filter by expertise
+    if (!showAllPapers) {
+      if (reviewerExpertise.length === 0) {
+        // If no expertise, show all submissions
+        return submissions;
+      }
+
+      return submissions.filter(matchesExpertise);
     }
 
-    return submissions.filter(submission => {
-      const trackName = submission.trackId?.name || submission.track || '';
-      const normalizedTrack = trackName.toLowerCase().trim();
-      
-      // Check if track matches any expertise domain
-      return reviewerExpertise.some(expertise => {
-        // Exact match or contains match
-        return normalizedTrack === expertise || 
-               normalizedTrack.includes(expertise) ||
-               expertise.includes(normalizedTrack);
-      });
-    });
-  }, [submissions, reviewerExpertise]);
+    // If toggle is ON (showAllPapers = true), show all submissions
+    return submissions;
+  }, [submissions, reviewerExpertise, showAllPapers, matchesExpertise]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -151,8 +161,10 @@ const ConferenceSubmissions = () => {
           </div>
           <div className="text-right">
             <p className="text-2xl font-bold text-blue-600">{filteredSubmissions.length}</p>
-            <p className="text-sm text-gray-600">Matching Papers</p>
-            {submissions.length !== filteredSubmissions.length && (
+            <p className="text-sm text-gray-600">
+              {showAllPapers ? 'Total Papers' : 'Matching Papers'}
+            </p>
+            {!showAllPapers && submissions.length !== filteredSubmissions.length && (
               <p className="text-xs text-gray-500 mt-1">
                 ({submissions.length} total)
               </p>
@@ -172,8 +184,39 @@ const ConferenceSubmissions = () => {
           </div>
         )}
 
-        {/* Track Filter */}
-        <div className="mb-6">
+        {/* Visibility Toggle and Track Filter */}
+        <div className="mb-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+          {/* Toggle Control */}
+          <div className="flex items-center bg-white border border-gray-200 rounded-lg p-1 shadow-sm">
+            <button
+              onClick={() => setShowAllPapers(false)}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                !showAllPapers
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                <span>⭐</span>
+                <span>Recommended for You</span>
+              </span>
+            </button>
+            <button
+              onClick={() => setShowAllPapers(true)}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                showAllPapers
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                <span>📄</span>
+                <span>Show All Papers</span>
+              </span>
+            </button>
+          </div>
+
+          {/* Track Filter */}
           <div className="w-64">
             <Select value={trackFilter} onChange={(e) => setTrackFilter(e.target.value)}>
               <option value="">All Tracks</option>
@@ -198,12 +241,19 @@ const ConferenceSubmissions = () => {
                 ? 'Please add expertise domains to your profile to view relevant papers.'
                 : submissions.length === 0
                   ? 'No submissions available for bidding in this conference.'
-                  : `No papers available for your expertise in this conference. ${trackFilter ? 'Try changing the track filter.' : ''}`}
+                  : `No papers available for your expertise in this conference. ${trackFilter ? 'Try changing the track filter or ' : 'Try '}switching to "Show All Papers".`}
             </p>
             {reviewerExpertise.length === 0 && (
               <Button onClick={() => navigate('/profile')}>
                 Update Profile
               </Button>
+            )}
+            {reviewerExpertise.length > 0 && submissions.length > 0 && !showAllPapers && (
+              <div className="mt-4">
+                <Button onClick={() => setShowAllPapers(true)}>
+                  Show All Papers
+                </Button>
+              </div>
             )}
             {reviewerExpertise.length > 0 && submissions.length > 0 && (
               <div className="mt-4 text-sm text-gray-500">
@@ -213,63 +263,77 @@ const ConferenceSubmissions = () => {
                     <Badge key={idx} variant="info" className="capitalize">{domain}</Badge>
                   ))}
                 </div>
-                <p className="mt-3 text-xs">Papers are filtered to match your expertise domains.</p>
               </div>
             )}
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {filteredSubmissions.map((submission) => (
-              <Card key={submission._id} hoverable>
-                <div className="flex justify-between items-start mb-3">
-                  <h3 className="text-lg font-bold text-gray-900 line-clamp-2 flex-1 pr-2">
-                    {submission.title}
-                  </h3>
-                  {getStatusBadge(submission.status)}
-                </div>
-
-                <div className="space-y-2 mb-4">
-                  {submission.trackId?.name && (
-                    <p className="text-sm text-gray-600">
-                      <span className="font-medium">Track:</span>{' '}
-                      <Badge variant="info" className="text-xs">{submission.trackId.name}</Badge>
-                    </p>
-                  )}
-                  {submission.authorId?.name && (
-                    <p className="text-sm text-gray-600">
-                      <span className="font-medium">Author:</span> {submission.authorId.name}
-                    </p>
-                  )}
-                  <p className="text-sm text-gray-500">
-                    <span className="font-medium">Submitted:</span>{' '}
-                    {formatDate(submission.createdAt || submission.submittedAt)}
-                  </p>
-                </div>
-
-                {submission.abstract && (
-                  <div className="text-sm text-gray-600 mb-4 bg-gray-50 p-3 rounded max-h-32 overflow-y-auto">
-                    {submission.abstract}
+            {filteredSubmissions.map((submission) => {
+              const isOutsideExpertise = showAllPapers && !matchesExpertise(submission);
+              
+              return (
+                <Card 
+                  key={submission._id} 
+                  hoverable
+                  className={isOutsideExpertise ? 'opacity-75 border-2 border-dashed border-gray-300' : ''}
+                >
+                  <div className="flex justify-between items-start mb-3">
+                    <h3 className="text-lg font-bold text-gray-900 line-clamp-2 flex-1 pr-2">
+                      {submission.title}
+                    </h3>
+                    <div className="flex flex-col gap-1 items-end">
+                      {getStatusBadge(submission.status)}
+                      {isOutsideExpertise && (
+                        <Badge variant="warning" className="text-xs whitespace-nowrap">
+                          Outside Your Expertise
+                        </Badge>
+                      )}
+                    </div>
                   </div>
-                )}
 
-                <div className="flex gap-2">
-                  {submission.hasBid ? (
-                    <Badge variant="success" className="w-full text-center py-2">
-                      ✓ Bid Placed
-                    </Badge>
-                  ) : (
-                    <Button
-                      size="sm"
-                      fullWidth
-                      onClick={() => openBidModal(submission)}
-                      disabled={bidding === submission._id}
-                    >
-                      {bidding === submission._id ? 'Placing Bid...' : 'Place Bid'}
-                    </Button>
+                  <div className="space-y-2 mb-4">
+                    {submission.trackId?.name && (
+                      <p className="text-sm text-gray-600">
+                        <span className="font-medium">Track:</span>{' '}
+                        <Badge variant="info" className="text-xs">{submission.trackId.name}</Badge>
+                      </p>
+                    )}
+                    {submission.authorId?.name && (
+                      <p className="text-sm text-gray-600">
+                        <span className="font-medium">Author:</span> {submission.authorId.name}
+                      </p>
+                    )}
+                    <p className="text-sm text-gray-500">
+                      <span className="font-medium">Submitted:</span>{' '}
+                      {formatDate(submission.createdAt || submission.submittedAt)}
+                    </p>
+                  </div>
+
+                  {submission.abstract && (
+                    <div className="text-sm text-gray-600 mb-4 bg-gray-50 p-3 rounded max-h-32 overflow-y-auto">
+                      {submission.abstract}
+                    </div>
                   )}
-                </div>
-              </Card>
-            ))}
+
+                  <div className="flex gap-2">
+                    {submission.hasBid ? (
+                      <Badge variant="success" className="w-full text-center py-2">
+                        ✓ Bid Placed
+                      </Badge>
+                    ) : (
+                      <Button
+                        size="sm"
+                        fullWidth
+                        onClick={() => openBidModal(submission)}
+                        disabled={bidding === submission._id}
+                      >
+                        {bidding === submission._id ? 'Placing Bid...' : 'Place Bid'}
+                      </Button>
+                    )}
+                  </div>
+                </Card>
+              );
+            })}
           </div>
         )}
       </div>
