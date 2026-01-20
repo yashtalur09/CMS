@@ -53,7 +53,7 @@ const OrcidCallback = () => {
 
         // Send code to backend
         const response = await axios.post(
-          `${process.env.REACT_APP_API_URL}/auth/orcid/callback`,
+          `${process.env.REACT_APP_API_URL || 'https://cms-backend-fjdo.onrender.com/api'}/auth/orcid/callback`,
           { code, role }
         );
 

@@ -53,7 +53,7 @@ const GoogleCallback = () => {
 
         // Send code to backend
         const response = await axios.post(
-          `${process.env.REACT_APP_API_URL}/auth/google/callback`,
+          `${process.env.REACT_APP_API_URL || 'https://cms-backend-fjdo.onrender.com/api'}/auth/google/callback`,
           { code, role }
         );
 

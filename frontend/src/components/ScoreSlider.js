@@ -94,7 +94,7 @@ const ScoreSlider = ({
             document.removeEventListener('touchmove', handleTouchMove);
             document.removeEventListener('touchend', handleMouseUp);
         };
-    }, [isDragging]);
+    }, [isDragging, handleMouseMove, handleTouchMove]);
 
     const thumbPosition = ((animatedValue - min) / (max - min)) * 100;
     const colors = getColorForScore(animatedValue);
