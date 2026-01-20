@@ -184,7 +184,11 @@ const ViewSubmissions = () => {
   };
 
   const getFileUrl = (fileUrl) => {
-    // If it's a relative path, prepend the backend server URL
+    // If it's already a full URL (from Cloudinary), use it directly
+    if (fileUrl && (fileUrl.startsWith('http://') || fileUrl.startsWith('https://'))) {
+      return fileUrl;
+    }
+    // If it's a relative path (legacy uploads), prepend backend URL
     if (fileUrl && fileUrl.startsWith('/')) {
       const backendUrl = process.env.REACT_APP_API_URL?.replace('/api', '') || 'https://cms-backend-fjdo.onrender.com';
       return `${backendUrl}${fileUrl}`;

@@ -31,7 +31,19 @@ const ReviewPaper = () => {
     confidentialComments: ''
   });
 
-  const API_BASE_URL = process.env.REACT_APP_API_URL?.replace('/api', '') || 'https://cms-backend-fjdo.onrender.com';
+  // Helper function to get the correct file URL
+  const getFileUrl = (fileUrl) => {
+    // If it's already a full URL (from Cloudinary), use it directly
+    if (fileUrl && (fileUrl.startsWith('http://') || fileUrl.startsWith('https://'))) {
+      return fileUrl;
+    }
+    // If it's a relative path (legacy uploads), prepend backend URL
+    if (fileUrl && fileUrl.startsWith('/')) {
+      const API_BASE_URL = process.env.REACT_APP_API_URL?.replace('/api', '') || 'https://cms-backend-fjdo.onrender.com';
+      return `${API_BASE_URL}${fileUrl}`;
+    }
+    return fileUrl;
+  };
 
   const recommendations = [
     { value: 'ACCEPT', label: 'Accept', color: 'text-green-600' },
@@ -305,7 +317,7 @@ const ReviewPaper = () => {
                   📄 Preview Paper
                 </Button>
                 <a
-                  href={`${API_BASE_URL}${submission.fileUrl}`}
+                  href={getFileUrl(submission.fileUrl)}
                   download
                   className="inline-flex items-center px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 border border-blue-600 hover:border-blue-700 rounded-lg transition-colors"
                 >
@@ -428,14 +440,14 @@ const ReviewPaper = () => {
             </div>
             <div style={{ height: '70vh' }}>
               <iframe
-                src={`${API_BASE_URL}${submission.fileUrl}`}
+                src={getFileUrl(submission.fileUrl)}
                 className="w-full h-full"
                 title="Paper Preview"
               />
             </div>
             <div className="px-6 py-4 border-t flex justify-end gap-3">
               <a
-                href={`${API_BASE_URL}${submission.fileUrl}`}
+                href={getFileUrl(submission.fileUrl)}
                 download
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
               >

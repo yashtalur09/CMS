@@ -16,7 +16,19 @@ const MyAssignedPapers = () => {
   const [pdfUrl, setPdfUrl] = useState('');
   const [selectedSubmission, setSelectedSubmission] = useState(null);
 
-  const API_BASE_URL = process.env.REACT_APP_API_URL?.replace('/api', '') || 'https://cms-backend-fjdo.onrender.com';
+  // Helper function to get the correct file URL
+  const getFileUrl = (fileUrl) => {
+    // If it's already a full URL (from Cloudinary), use it directly
+    if (fileUrl && (fileUrl.startsWith('http://') || fileUrl.startsWith('https://'))) {
+      return fileUrl;
+    }
+    // If it's a relative path (legacy uploads), prepend backend URL
+    if (fileUrl && fileUrl.startsWith('/')) {
+      const API_BASE_URL = process.env.REACT_APP_API_URL?.replace('/api', '') || 'https://cms-backend-fjdo.onrender.com';
+      return `${API_BASE_URL}${fileUrl}`;
+    }
+    return fileUrl;
+  };
 
   useEffect(() => {
     fetchAssignedSubmissions();
@@ -155,19 +167,19 @@ const MyAssignedPapers = () => {
                     size="sm"
                     variant="primary"
                     onClick={() => {
-                      setPdfUrl(`${API_BASE_URL}${submission.fileUrl}`);
+                      setPdfUrl(getFileUrl(submission.fileUrl));
                       setSelectedSubmission(submission);
                       setShowPdfModal(true);
                     }}
                   >
-                    Preview Paper
+                    📄 View
                   </Button>
                   <a
-                    href={`${API_BASE_URL}${submission.fileUrl}`}
+                    href={getFileUrl(submission.fileUrl)}
                     download
-                    className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 border border-blue-600 hover:border-blue-700 rounded-lg transition-colors"
+                    className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 border border-blue-600 hover:border-blue-700 rounded-md transition-colors"
                   >
-                    Download
+                    ⬇️ Download
                   </a>
                   <Button
                     size="sm"
