@@ -16,15 +16,18 @@ cloudinary.config({
 // Configure Cloudinary storage for multer
 const storage = new CloudinaryStorage({
     cloudinary: cloudinary,
-    params: {
-        folder: 'conference-papers', // Folder name in Cloudinary
-        allowed_formats: ['pdf', 'doc', 'docx'],
-        resource_type: 'raw', // For non-image files (PDFs, docs, etc.)
-        public_id: (req, file) => {
-            // Create unique filename with timestamp (without extension - Cloudinary adds it automatically)
-            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-            return `paper-${uniqueSuffix}`;
-        }
+    params: async (req, file) => {
+        // Get file extension
+        const ext = path.extname(file.originalname).toLowerCase().substring(1); // Remove the dot
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        
+        return {
+            folder: 'conference-papers',
+            allowed_formats: ['pdf', 'doc', 'docx'],
+            resource_type: 'raw',
+            public_id: `paper-${uniqueSuffix}`,
+            format: ext // Explicitly set the format to preserve extension
+        };
     }
 });
 
