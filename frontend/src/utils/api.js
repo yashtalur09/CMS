@@ -2,9 +2,9 @@ import axios from 'axios';
 
 const getBaseUrl = () => {
   if (typeof window !== 'undefined' && window.location) {
-    return process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000/api`;
+    return process.env.REACT_APP_API_URL || 'https://cms-backend-fjdo.onrender.com/api';
   }
-  return process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+  return process.env.REACT_APP_API_URL || 'https://cms-backend-fjdo.onrender.com/api';
 };
 
 const axiosInstance = axios.create({

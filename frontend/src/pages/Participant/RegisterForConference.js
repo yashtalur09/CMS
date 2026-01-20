@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Navbar from '../../components/Navbar';
 import Card from '../../components/Card';
 import Button from '../../components/Button';
 import Input from '../../components/Input';
-import Select from '../../components/Select';
 import Textarea from '../../components/Textarea';
 import Loading from '../../components/Loading';
 import Badge from '../../components/Badge';
@@ -26,11 +25,7 @@ const RegisterForConference = () => {
     emergencyPhone: ''
   });
 
-  useEffect(() => {
-    fetchConference();
-  }, [id]);
-
-  const fetchConference = async () => {
+  const fetchConference = useCallback(async () => {
     try {
       const response = await api.get(`/participant/conferences/${id}`);
       if (response.data.data.isRegistered) {
@@ -46,7 +41,11 @@ const RegisterForConference = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, toast, navigate]);
+
+  useEffect(() => {
+    fetchConference();
+  }, [fetchConference]);
 
   const formatDate = (date) => {
     return new Date(date).toLocaleDateString('en-US', {

@@ -31,7 +31,7 @@ const ReviewPaper = () => {
     confidentialComments: ''
   });
 
-  const API_BASE_URL = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5000';
+  const API_BASE_URL = process.env.REACT_APP_API_URL?.replace('/api', '') || 'https://cms-backend-fjdo.onrender.com';
 
   const recommendations = [
     { value: 'ACCEPT', label: 'Accept', color: 'text-green-600' },
@@ -39,10 +39,6 @@ const ReviewPaper = () => {
     { value: 'MAJOR_REVISION', label: 'Major Revision', color: 'text-orange-600' },
     { value: 'REJECT', label: 'Reject', color: 'text-red-600' }
   ];
-
-  useEffect(() => {
-    fetchData();
-  }, [actualSubmissionId]);
 
   const fetchData = useCallback(async () => {
     try {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '../../components/Navbar';
 import Card from '../../components/Card';
@@ -22,7 +22,7 @@ const ManageConference = () => {
   const conferenceId = id || confId; // Handle both route param names
   const navigate = useNavigate();
 
-  const [conference, setConference] = useState(null);
+  // Remove unused conference state variable since we only use it temporarily in fetchData
   const [tracks, setTracks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -51,11 +51,7 @@ const ManageConference = () => {
     generalChairSignaturePath: ''
   });
 
-  useEffect(() => {
-    fetchData();
-  }, [conferenceId]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -66,7 +62,6 @@ const ManageConference = () => {
       ]);
 
       const confData = confRes.data || confRes;
-      setConference(confData);
       setTracks(tracksRes.data || tracksRes || []);
 
       // Initialize form
@@ -85,7 +80,11 @@ const ManageConference = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [conferenceId]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const handleSignatureUpload = async (event) => {
     const file = event.target.files?.[0];

@@ -61,8 +61,6 @@ const certificateSchema = new mongoose.Schema({
 // Compound index to prevent duplicate certificates
 certificateSchema.index({ userId: 1, conferenceId: 1, type: 1 }, { unique: true });
 
-// Index for unique certificate ID lookups
-certificateSchema.index({ uniqueCertificateId: 1 });
 
 // Helper to generate unique certificate ID
 certificateSchema.statics.generateUniqueCertificateId = function () {

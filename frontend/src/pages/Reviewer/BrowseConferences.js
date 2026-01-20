@@ -16,7 +16,7 @@ const MyAssignedPapers = () => {
   const [pdfUrl, setPdfUrl] = useState('');
   const [selectedSubmission, setSelectedSubmission] = useState(null);
 
-  const API_BASE_URL = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5000';
+  const API_BASE_URL = process.env.REACT_APP_API_URL?.replace('/api', '') || 'https://cms-backend-fjdo.onrender.com';
 
   useEffect(() => {
     fetchAssignedSubmissions();

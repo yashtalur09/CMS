@@ -97,7 +97,7 @@ export default function SubmissionDetails() {
 
     const getFileUrl = (fileUrl) => {
         if (fileUrl && fileUrl.startsWith('/')) {
-            const backendUrl = process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`;
+            const backendUrl = process.env.REACT_APP_API_URL?.replace('/api', '') || 'https://cms-backend-fjdo.onrender.com';
             return `${backendUrl}${fileUrl}`;
         }
         return fileUrl;

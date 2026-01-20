@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '../../components/Navbar';
 import Card from '../../components/Card';
@@ -45,11 +45,7 @@ const ViewSubmissions = () => {
   const [saving, setSaving] = useState(false);
   const [approvingId, setApprovingId] = useState(null);
 
-  useEffect(() => {
-    fetchData();
-  }, [conferenceId, trackFilter, statusFilter]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -72,7 +68,11 @@ const ViewSubmissions = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [conferenceId, trackFilter, statusFilter]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const openSubmissionDetails = async (submission) => {
     setSelectedSubmission(submission);
@@ -186,7 +186,7 @@ const ViewSubmissions = () => {
   const getFileUrl = (fileUrl) => {
     // If it's a relative path, prepend the backend server URL
     if (fileUrl && fileUrl.startsWith('/')) {
-      const backendUrl = process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`;
+      const backendUrl = process.env.REACT_APP_API_URL?.replace('/api', '') || 'https://cms-backend-fjdo.onrender.com';
       return `${backendUrl}${fileUrl}`;
     }
     return fileUrl;

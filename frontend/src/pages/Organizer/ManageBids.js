@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '../../components/Navbar';
 import Card from '../../components/Card';
@@ -30,31 +30,7 @@ const ManageBids = () => {
     const [selectedPaper, setSelectedPaper] = useState(null);
     const [showBidsModal, setShowBidsModal] = useState(false);
 
-    useEffect(() => {
-        fetchBids();
-    }, [conferenceId, statusFilter]);
-
-    // Group bids by paper
-    const groupedByPaper = useMemo(() => {
-        const grouped = {};
-        bids.forEach(bid => {
-            const paperId = bid.submissionId?._id;
-            if (!paperId) return;
-
-            if (!grouped[paperId]) {
-                grouped[paperId] = {
-                    paper: bid.submissionId,
-                    bids: [],
-                    stats: { PENDING: 0, APPROVED: 0, REJECTED: 0, WITHDRAWN: 0 }
-                };
-            }
-            grouped[paperId].bids.push(bid);
-            grouped[paperId].stats[bid.status] = (grouped[paperId].stats[bid.status] || 0) + 1;
-        });
-        return Object.values(grouped);
-    }, [bids]);
-
-    const fetchBids = async () => {
+    const fetchBids = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
@@ -81,7 +57,31 @@ const ManageBids = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [conferenceId, statusFilter]);
+
+    useEffect(() => {
+        fetchBids();
+    }, [fetchBids]);
+
+    // Group bids by paper
+    const groupedByPaper = useMemo(() => {
+        const grouped = {};
+        bids.forEach(bid => {
+            const paperId = bid.submissionId?._id;
+            if (!paperId) return;
+
+            if (!grouped[paperId]) {
+                grouped[paperId] = {
+                    paper: bid.submissionId,
+                    bids: [],
+                    stats: { PENDING: 0, APPROVED: 0, REJECTED: 0, WITHDRAWN: 0 }
+                };
+            }
+            grouped[paperId].bids.push(bid);
+            grouped[paperId].stats[bid.status] = (grouped[paperId].stats[bid.status] || 0) + 1;
+        });
+        return Object.values(grouped);
+    }, [bids]);
 
     const handleUpdateStatus = async (bidId, status, reason = '') => {
         try {
