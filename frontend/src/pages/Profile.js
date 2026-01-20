@@ -129,33 +129,6 @@ const Profile = () => {
     return 'Local';
   };
 
-  const getRoleSpecificStats = () => {
-    const role = profileData?.role;
-    
-    switch (role) {
-      case 'organizer':
-        return [
-          { label: 'Conferences Created', value: profileData?.conferencesCreated || 0, icon: '🎪' },
-        ];
-      case 'author':
-        return [
-          { label: 'Total Submissions', value: profileData?.submissionsCount || 0, icon: '📄' },
-        ];
-      case 'reviewer':
-        return [
-          { label: 'Reviews Completed', value: profileData?.reviewsCount || 0, icon: '✅' },
-          { label: 'Average Rating', value: profileData?.reviewerRating ? `${profileData.reviewerRating}/5` : 'N/A', icon: '⭐' },
-        ];
-      case 'participant':
-        return [
-          { label: 'Registered Conferences', value: profileData?.registeredConferences || 0, icon: '🎫' },
-          { label: 'Certificates Earned', value: profileData?.certificatesEarned || 0, icon: '🏆' },
-        ];
-      default:
-        return [];
-    }
-  };
-
   if (loading) {
     return (
       <>
@@ -203,16 +176,6 @@ const Profile = () => {
               {/* Name & Role */}
               <h2 className="text-2xl font-bold text-gray-900 mb-1">{profileData?.name}</h2>
               <p className="text-sm text-gray-500 mb-4 capitalize">{profileData?.role}</p>
-
-              {/* Quick Stats */}
-              <div className="space-y-3 pt-4 border-t">
-                {getRoleSpecificStats().map((stat, idx) => (
-                  <div key={idx} className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">{stat.icon} {stat.label}</span>
-                    <span className="font-semibold text-gray-900">{stat.value}</span>
-                  </div>
-                ))}
-              </div>
 
               {/* Action Button */}
               {!isEditing && (
