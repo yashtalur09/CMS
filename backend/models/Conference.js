@@ -55,6 +55,10 @@ const conferenceSchema = new mongoose.Schema({
     default: 0,
     min: [0, 'Fee cannot be negative']
   },
+  generalChairSignaturePath: {
+    type: String,
+    default: ''
+  },
   status: {
     type: String,
     enum: ['active', 'expired'],

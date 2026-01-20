@@ -277,7 +277,7 @@ router.post(
           .filter(email => email && email !== author.email)
           .join(', ');
         console.log('📧 Co-author emails for CC:', coAuthorEmails);
-        
+
         sendEmail(
           author.email,
           templates.submissionConfirmation(author, submission, conference),
@@ -311,7 +311,7 @@ router.post(
 router.get('/submissions', async (req, res) => {
   try {
     const userId = req.user.userId;
-    
+
     // Find submissions where user is either the main author OR a co-author
     const query = {
       $or: [
@@ -319,11 +319,11 @@ router.get('/submissions', async (req, res) => {
         { 'coAuthors.userId': userId }
       ]
     };
-    
+
     if (req.query.trackId) {
       query.trackId = req.query.trackId;
     }
-    
+
     const submissions = await Submission.find(query)
       .populate('conferenceId', 'name')
       .populate('trackId', 'name')
@@ -353,7 +353,7 @@ router.get('/submissions', async (req, res) => {
 router.get('/submissions/:id', async (req, res) => {
   try {
     const userId = req.user.userId;
-    
+
     // Allow access if user is main author OR co-author
     const submission = await Submission.findOne({
       _id: req.params.id,
@@ -474,5 +474,67 @@ router.put(
   }
 );
 
-module.exports = router;
+/**
+ * @route   GET /api/author/certificates
+ * @desc    Get certificates for the logged-in author
+ * @access  Private (Author)
+ */
+router.get('/certificates', async (req, res) => {
+  try {
+    const Certificate = require('../models/Certificate');
 
+    const certificates = await Certificate.find({
+      userId: req.user.userId,
+      role: 'author'
+    })
+      .populate('conferenceId', 'name venue startDate endDate')
+      .select('-certificateBuffer') // Don't send buffer in list
+      .sort({ issuedAt: -1 })
+      .lean();
+
+    res.json({ success: true, data: { certificates } });
+
+  } catch (error) {
+    console.error('Get author certificates error:', error);
+    res.status(500).json({ success: false, message: 'Error fetching certificates', error: error.message });
+  }
+});
+
+/**
+ * @route   GET /api/author/certificates/:id/download
+ * @desc    Download a certificate PDF
+ * @access  Private (Author)
+ */
+router.get('/certificates/:id/download', async (req, res) => {
+  try {
+    const Certificate = require('../models/Certificate');
+
+    const certificate = await Certificate.findOne({
+      _id: req.params.id,
+      userId: req.user.userId,
+      role: 'author'
+    }).populate('conferenceId', 'name');
+
+    if (!certificate) {
+      return res.status(404).json({ success: false, message: 'Certificate not found' });
+    }
+
+    if (!certificate.certificateBuffer) {
+      return res.status(404).json({ success: false, message: 'Certificate file not available' });
+    }
+
+    // Set headers for PDF download
+    const fileName = `Certificate_${certificate.uniqueCertificateId}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.setHeader('Content-Length', certificate.certificateBuffer.length);
+
+    res.send(certificate.certificateBuffer);
+
+  } catch (error) {
+    console.error('Download author certificate error:', error);
+    res.status(500).json({ success: false, message: 'Error downloading certificate', error: error.message });
+  }
+});
+
+module.exports = router;

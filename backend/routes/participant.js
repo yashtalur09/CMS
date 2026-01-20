@@ -18,8 +18,8 @@ router.use(auth, authorize('participant'));
 router.get('/dashboard', async (req, res) => {
   try {
     // Get registered conferences
-    const registrations = await Registration.find({ 
-      participantId: req.user.userId 
+    const registrations = await Registration.find({
+      participantId: req.user.userId
     })
       .populate('conferenceId')
       .sort({ registeredAt: -1 });
@@ -264,8 +264,8 @@ router.post('/registrations', [
  */
 router.get('/registrations', async (req, res) => {
   try {
-    const registrations = await Registration.find({ 
-      participantId: req.user.userId 
+    const registrations = await Registration.find({
+      participantId: req.user.userId
     })
       .populate('conferenceId')
       .sort({ registeredAt: -1 });
@@ -325,16 +325,19 @@ router.put('/registrations/:id/payment', async (req, res) => {
 
 /**
  * @route   GET /api/participant/certificates
- * @desc    Get all certificates
+ * @desc    Get all certificates for the participant
  * @access  Private (Participant)
  */
 router.get('/certificates', async (req, res) => {
   try {
-    const certificates = await Certificate.find({ 
-      userId: req.user.userId 
+    const certificates = await Certificate.find({
+      userId: req.user.userId,
+      role: 'participant'
     })
       .populate('conferenceId', 'name venue startDate endDate')
-      .sort({ issuedAt: -1 });
+      .select('-certificateBuffer') // Don't send buffer in list
+      .sort({ issuedAt: -1 })
+      .lean();
 
     res.json({
       success: true,
@@ -353,14 +356,15 @@ router.get('/certificates', async (req, res) => {
 
 /**
  * @route   GET /api/participant/certificates/:id/download
- * @desc    Download certificate
+ * @desc    Download certificate PDF
  * @access  Private (Participant)
  */
 router.get('/certificates/:id/download', async (req, res) => {
   try {
     const certificate = await Certificate.findOne({
       _id: req.params.id,
-      userId: req.user.userId
+      userId: req.user.userId,
+      role: 'participant'
     }).populate('conferenceId', 'name');
 
     if (!certificate) {
@@ -370,15 +374,20 @@ router.get('/certificates/:id/download', async (req, res) => {
       });
     }
 
-    // In production, this would serve the actual PDF file
-    res.json({
-      success: true,
-      message: 'Certificate download link',
-      data: {
-        downloadUrl: certificate.fileUrl,
-        certificate
-      }
-    });
+    if (!certificate.certificateBuffer) {
+      return res.status(404).json({
+        success: false,
+        message: 'Certificate file not available'
+      });
+    }
+
+    // Set headers for PDF download
+    const fileName = `Certificate_${certificate.uniqueCertificateId}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.setHeader('Content-Length', certificate.certificateBuffer.length);
+
+    res.send(certificate.certificateBuffer);
 
   } catch (error) {
     console.error('Download certificate error:', error);
@@ -391,3 +400,4 @@ router.get('/certificates/:id/download', async (req, res) => {
 });
 
 module.exports = router;
+

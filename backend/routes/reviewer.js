@@ -663,6 +663,67 @@ router.get('/assignments', async (req, res) => {
   }
 });
 
+/**
+ * @route   GET /api/reviewer/certificates
+ * @desc    Get certificates for the logged-in reviewer
+ * @access  Private (Reviewer)
+ */
+router.get('/certificates', async (req, res) => {
+  try {
+    const Certificate = require('../models/Certificate');
+
+    const certificates = await Certificate.find({
+      userId: req.user.userId,
+      role: 'reviewer'
+    })
+      .populate('conferenceId', 'name venue startDate endDate')
+      .select('-certificateBuffer') // Don't send buffer in list
+      .sort({ issuedAt: -1 })
+      .lean();
+
+    res.json({ success: true, data: { certificates } });
+
+  } catch (error) {
+    console.error('Get reviewer certificates error:', error);
+    res.status(500).json({ success: false, message: 'Error fetching certificates', error: error.message });
+  }
+});
+
+/**
+ * @route   GET /api/reviewer/certificates/:id/download
+ * @desc    Download a certificate PDF
+ * @access  Private (Reviewer)
+ */
+router.get('/certificates/:id/download', async (req, res) => {
+  try {
+    const Certificate = require('../models/Certificate');
+
+    const certificate = await Certificate.findOne({
+      _id: req.params.id,
+      userId: req.user.userId,
+      role: 'reviewer'
+    }).populate('conferenceId', 'name');
+
+    if (!certificate) {
+      return res.status(404).json({ success: false, message: 'Certificate not found' });
+    }
+
+    if (!certificate.certificateBuffer) {
+      return res.status(404).json({ success: false, message: 'Certificate file not available' });
+    }
+
+    // Set headers for PDF download
+    const fileName = `Certificate_${certificate.uniqueCertificateId}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.setHeader('Content-Length', certificate.certificateBuffer.length);
+
+    res.send(certificate.certificateBuffer);
+
+  } catch (error) {
+    console.error('Download reviewer certificate error:', error);
+    res.status(500).json({ success: false, message: 'Error downloading certificate', error: error.message });
+  }
+});
 
 module.exports = router;
-

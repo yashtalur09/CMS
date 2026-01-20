@@ -36,6 +36,8 @@ const submissionSchema = new mongoose.Schema({
     venue: String
   },
   revisionCount: { type: Number, default: 0 }, // Tracks how many times paper was revised
+  authorAttendanceMarked: { type: Boolean, default: false }, // For certificate eligibility
+  authorAttendanceMarkedAt: { type: Date, default: null },
   submittedAt: { type: Date, default: Date.now },
   lastUpdatedAt: { type: Date, default: Date.now }
 }, {

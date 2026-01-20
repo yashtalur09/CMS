@@ -11,6 +11,8 @@ const Registration = require('../models/Registration');
 const Track = require('../models/Track');
 const User = require('../models/User');
 const { sendEmail, templates } = require('../utils/emailService');
+const { generateCertificate, formatConferenceDates } = require('../utils/certificateGenerator');
+const { upload, setUploadType } = require('../middleware/upload');
 
 // All organizer routes require authentication and organizer role
 router.use(auth, authorize('organizer'));
@@ -240,7 +242,7 @@ router.put('/conferences/:id', async (req, res) => {
     }
 
     // Apply allowed updates
-    const updatable = ['name', 'description', 'venue', 'startDate', 'endDate', 'submissionDeadline', 'domains', 'fee', 'status'];
+    const updatable = ['name', 'description', 'venue', 'startDate', 'endDate', 'submissionDeadline', 'domains', 'fee', 'status', 'generalChairSignaturePath'];
     updatable.forEach(field => {
       if (typeof req.body[field] !== 'undefined') {
         conference[field] = req.body[field];
@@ -414,20 +416,20 @@ router.patch('/submission/:submissionId/decision', [
 
     // Send emails based on decision
     const decision = req.body.decision;
-    
+
     if (decision === 'accepted' || decision === 'rejected') {
       // Send to author (CC co-authors)
       if (updated.authorId?.email) {
-        const emailTemplate = decision === 'accepted' 
+        const emailTemplate = decision === 'accepted'
           ? templates.paperAccepted(updated.authorId, updated, conference)
           : templates.paperRejected(updated.authorId, updated, conference, req.body.feedback);
-        
+
         // Get co-author emails
         const coAuthorEmails = updated.coAuthors
           ?.map(ca => ca.email)
           .filter(email => email && email !== updated.authorId.email)
           .join(', ');
-        
+
         sendEmail(updated.authorId.email, emailTemplate, coAuthorEmails || null)
           .catch(err => console.error('Email error:', err));
       }
@@ -452,7 +454,7 @@ router.patch('/submission/:submissionId/decision', [
           ?.map(ca => ca.email)
           .filter(email => email && email !== updated.authorId.email)
           .join(', ');
-        
+
         sendEmail(
           updated.authorId.email,
           templates.revisionRequested(updated.authorId, updated, conference, req.body.feedback),
@@ -610,61 +612,223 @@ router.put('/submissions/:id/schedule', [
 
 /**
  * @route   POST /api/organizer/conferences/:id/certificates
- * @desc    Generate certificates for conference participants and accepted presenters
+ * @desc    Generate certificates for conference authors, participants, and reviewers
  * @access  Private (Organizer)
  */
 router.post('/conferences/:id/certificates', async (req, res) => {
   try {
-    const conference = await Conference.findOne({ _id: req.params.id, organizerId: req.user.userId });
+    const conference = await Conference.findOne({ _id: req.params.id, organizerId: req.user.userId })
+      .populate('organizerId', 'name');
     if (!conference) {
       return res.status(404).json({ success: false, message: 'Conference not found' });
     }
 
-    // gather tracks
+    // Get organizer info
+    const organizer = await User.findById(req.user.userId).select('name').lean();
+    const organizerName = organizer?.name || 'Conference Organizer';
+    const chairTitle = conference.generalChairSignaturePath ? 'General Chair' : 'Conference Organizer';
+    const signaturePath = conference.generalChairSignaturePath || null;
+    const conferenceDate = formatConferenceDates(conference.startDate, conference.endDate);
+
+    // Gather tracks
     const tracks = await Track.find({ conferenceId: conference._id }).select('_id').lean();
     const trackIds = tracks.map(t => t._id);
 
-    // 1) Accepted submissions -> presenter certificates
-    const acceptedSubmissions = await Submission.find({ trackId: { $in: trackIds }, status: 'accepted' }).populate('authorId', 'name email').lean();
-
     const created = [];
+    const errors = [];
+
+    // 1) Authors with accepted submissions AND attendance marked -> presentation certificates
+    const acceptedSubmissions = await Submission.find({
+      trackId: { $in: trackIds },
+      status: 'accepted',
+      authorAttendanceMarked: true
+    }).populate('authorId', 'name email').lean();
+
     for (const sub of acceptedSubmissions) {
-      const existing = await Certificate.findOne({ userId: sub.authorId._id, conferenceId: conference._id, type: 'presentation' }).lean();
-      if (!existing) {
-        const cert = await Certificate.create({
-          userId: sub.authorId._id,
+      if (!sub.authorId) continue;
+
+      // Build list of all authors: main author + co-authors
+      const allAuthors = [
+        { userId: sub.authorId._id, name: sub.authorId.name, email: sub.authorId.email },
+        ...(sub.coAuthors || []).map((ca) => ({
+          userId: ca.userId || null,
+          name: ca.name,
+          email: ca.email
+        }))
+      ];
+
+      for (const author of allAuthors) {
+        // If co-author is not linked to a user account, skip (cannot attach certificate to user)
+        if (!author.userId) {
+          continue;
+        }
+
+        const existing = await Certificate.findOne({
+          userId: author.userId,
           conferenceId: conference._id,
           type: 'presentation',
-          meta: { submissionId: sub._id, trackId: sub.trackId },
-          issuedAt: new Date()
-        });
-        created.push(cert);
+          submissionId: sub._id
+        }).lean();
+
+        if (!existing) {
+          try {
+            const uniqueId = Certificate.generateUniqueCertificateId();
+
+            // Generate PDF
+            const pdfBuffer = await generateCertificate({
+              name: author.name,
+              role: 'Author',
+              conferenceName: conference.name,
+              conferenceDate: conferenceDate,
+              uniqueId: uniqueId,
+              paperTitle: sub.title,
+              organizerName: organizerName,
+              chairTitle,
+              signaturePath
+            });
+
+            const cert = await Certificate.create({
+              userId: author.userId,
+              conferenceId: conference._id,
+              type: 'presentation',
+              role: 'author',
+              uniqueCertificateId: uniqueId,
+              paperTitle: sub.title,
+              submissionId: sub._id,
+              certificateBuffer: pdfBuffer,
+              generatedAt: new Date(),
+              issuedAt: new Date()
+            });
+            created.push({ type: 'author', user: author.name, certificateId: cert._id });
+          } catch (err) {
+            console.error('Error generating author certificate:', err);
+            errors.push({ type: 'author', user: author.name, error: err.message });
+          }
+        }
       }
     }
 
-    // 2) Participants with attendance -> participation certificates
-    const registrations = await Registration.find({ conferenceId: conference._id, attended: true }).populate('userId', 'name email').lean();
+    // 2) Participants with attendance marked -> participation certificates
+    const registrations = await Registration.find({
+      conferenceId: conference._id,
+      attendanceMarked: true
+    }).populate('participantId', 'name email').lean();
+
     for (const reg of registrations) {
-      const existing = await Certificate.findOne({ userId: reg.userId._id, conferenceId: conference._id, type: 'participation' }).lean();
+      if (!reg.participantId) continue;
+
+      const existing = await Certificate.findOne({
+        userId: reg.participantId._id,
+        conferenceId: conference._id,
+        type: 'participation'
+      }).lean();
+
       if (!existing) {
-        const cert = await Certificate.create({
-          userId: reg.userId._id,
-          conferenceId: conference._id,
-          type: 'participation',
-          meta: { registrationId: reg._id },
-          issuedAt: new Date()
-        });
-        created.push(cert);
+        try {
+          const uniqueId = Certificate.generateUniqueCertificateId();
+
+          // Generate PDF
+          const pdfBuffer = await generateCertificate({
+            name: reg.participantId.name,
+            role: 'Participant',
+            conferenceName: conference.name,
+            conferenceDate: conferenceDate,
+            uniqueId: uniqueId,
+            organizerName: organizerName,
+            chairTitle,
+            signaturePath
+          });
+
+          const cert = await Certificate.create({
+            userId: reg.participantId._id,
+            conferenceId: conference._id,
+            type: 'participation',
+            role: 'participant',
+            uniqueCertificateId: uniqueId,
+            certificateBuffer: pdfBuffer,
+            generatedAt: new Date(),
+            issuedAt: new Date()
+          });
+          created.push({ type: 'participant', user: reg.participantId.name, certificateId: cert._id });
+        } catch (err) {
+          console.error('Error generating participant certificate:', err);
+          errors.push({ type: 'participant', user: reg.participantId.name, error: err.message });
+        }
       }
     }
 
-    res.json({ success: true, message: 'Certificates generated', data: { createdCount: created.length, created } });
+    // 3) Reviewers who submitted ACCEPT or REJECT verdicts -> reviewer certificates
+    const reviews = await Review.find({
+      trackId: { $in: trackIds },
+      status: 'submitted',
+      recommendation: { $in: ['ACCEPT', 'REJECT'] }
+    }).populate('reviewerId', 'name email').lean();
+
+    // Get unique reviewers (a reviewer may have reviewed multiple papers)
+    const reviewerMap = new Map();
+    for (const review of reviews) {
+      if (review.reviewerId && !reviewerMap.has(review.reviewerId._id.toString())) {
+        reviewerMap.set(review.reviewerId._id.toString(), review.reviewerId);
+      }
+    }
+
+    for (const [reviewerId, reviewer] of reviewerMap) {
+      const existing = await Certificate.findOne({
+        userId: reviewer._id,
+        conferenceId: conference._id,
+        type: 'reviewer'
+      }).lean();
+
+      if (!existing) {
+        try {
+          const uniqueId = Certificate.generateUniqueCertificateId();
+
+          // Generate PDF
+          const pdfBuffer = await generateCertificate({
+            name: reviewer.name,
+            role: 'Reviewer',
+            conferenceName: conference.name,
+            conferenceDate: conferenceDate,
+            uniqueId: uniqueId,
+            organizerName: organizerName,
+            chairTitle,
+            signaturePath
+          });
+
+          const cert = await Certificate.create({
+            userId: reviewer._id,
+            conferenceId: conference._id,
+            type: 'reviewer',
+            role: 'reviewer',
+            uniqueCertificateId: uniqueId,
+            certificateBuffer: pdfBuffer,
+            generatedAt: new Date(),
+            issuedAt: new Date()
+          });
+          created.push({ type: 'reviewer', user: reviewer.name, certificateId: cert._id });
+        } catch (err) {
+          console.error('Error generating reviewer certificate:', err);
+          errors.push({ type: 'reviewer', user: reviewer.name, error: err.message });
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Certificates generated: ${created.length} created`,
+      data: {
+        createdCount: created.length,
+        created,
+        errors: errors.length > 0 ? errors : undefined
+      }
+    });
 
   } catch (error) {
     console.error('Generate certificates error:', error);
     res.status(500).json({ success: false, message: 'Error generating certificates', error: error.message });
   }
 });
+
 
 /**
  * @route   PUT /api/organizer/registrations/:id/attendance
@@ -690,8 +854,10 @@ router.put('/registrations/:id/attendance', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Registration not found' });
     }
 
-    registration.attended = !!req.body.attended;
-    registration.attendedAt = registration.attended ? new Date() : undefined;
+    registration.attendanceMarked = !!req.body.attended;
+    if (registration.attendanceMarked) {
+      registration.attendedAt = new Date();
+    }
     await registration.save();
 
     res.json({ success: true, message: 'Attendance updated', data: registration });
@@ -699,6 +865,172 @@ router.put('/registrations/:id/attendance', async (req, res) => {
   } catch (error) {
     console.error('Update attendance error:', error);
     res.status(500).json({ success: false, message: 'Error updating attendance', error: error.message });
+  }
+});
+
+/**
+ * @route   PUT /api/organizer/submissions/:id/attendance
+ * @desc    Mark attendance for an author (for accepted submissions)
+ * @access  Private (Organizer)
+ */
+router.put('/submissions/:id/attendance', async (req, res) => {
+  try {
+    const submissionId = req.params.id;
+
+    const submission = await Submission.findById(submissionId);
+    if (!submission) {
+      return res.status(404).json({ success: false, message: 'Submission not found' });
+    }
+
+    // Verify organizer owns the conference
+    const track = await Track.findById(submission.trackId).lean();
+    if (!track) {
+      return res.status(400).json({ success: false, message: 'Submission track missing' });
+    }
+
+    const conference = await Conference.findById(track.conferenceId).lean();
+    if (!conference || conference.organizerId.toString() !== req.user.userId) {
+      return res.status(403).json({ success: false, message: 'Not authorized to mark attendance for this submission' });
+    }
+
+    // Only allow attendance marking for accepted submissions
+    if (submission.status !== 'accepted') {
+      return res.status(400).json({ success: false, message: 'Attendance can only be marked for accepted submissions' });
+    }
+
+    submission.authorAttendanceMarked = !!req.body.attended;
+    submission.authorAttendanceMarkedAt = submission.authorAttendanceMarked ? new Date() : null;
+    await submission.save();
+
+    res.json({ success: true, message: 'Author attendance updated', data: submission });
+
+  } catch (error) {
+    console.error('Update author attendance error:', error);
+    res.status(500).json({ success: false, message: 'Error updating author attendance', error: error.message });
+  }
+});
+
+/**
+ * @route   GET /api/organizer/conferences/:id/authors
+ * @desc    Get all accepted submissions with author info for attendance marking
+ * @access  Private (Organizer)
+ */
+router.get('/conferences/:id/authors', async (req, res) => {
+  try {
+    const conference = await Conference.findOne({ _id: req.params.id, organizerId: req.user.userId });
+    if (!conference) {
+      return res.status(404).json({ success: false, message: 'Conference not found' });
+    }
+
+    // Get tracks for conference
+    const tracks = await Track.find({ conferenceId: conference._id }).select('_id name').lean();
+    const trackIds = tracks.map(t => t._id);
+
+    // Get accepted submissions with author info
+    const submissions = await Submission.find({
+      trackId: { $in: trackIds },
+      status: 'accepted'
+    })
+      .populate('authorId', 'name email')
+      .populate('trackId', 'name')
+      .select('title authorId trackId authorAttendanceMarked authorAttendanceMarkedAt status')
+      .sort({ title: 1 })
+      .lean();
+
+    res.json({
+      success: true,
+      data: {
+        submissions,
+        conference: {
+          _id: conference._id,
+          name: conference.name
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Get authors error:', error);
+    res.status(500).json({ success: false, message: 'Error fetching authors', error: error.message });
+  }
+});
+
+/**
+ * @route   GET /api/organizer/conferences/:id/certificate-stats
+ * @desc    Get certificate eligibility stats for a conference
+ * @access  Private (Organizer)
+ */
+router.get('/conferences/:id/certificate-stats', async (req, res) => {
+  try {
+    const conference = await Conference.findOne({ _id: req.params.id, organizerId: req.user.userId });
+    if (!conference) {
+      return res.status(404).json({ success: false, message: 'Conference not found' });
+    }
+
+    // Get tracks
+    const tracks = await Track.find({ conferenceId: conference._id }).select('_id').lean();
+    const trackIds = tracks.map(t => t._id);
+
+    // Count eligible authors (accepted + attendance marked)
+    const eligibleAuthors = await Submission.countDocuments({
+      trackId: { $in: trackIds },
+      status: 'accepted',
+      authorAttendanceMarked: true
+    });
+
+    // Count eligible participants (attendance marked)
+    const eligibleParticipants = await Registration.countDocuments({
+      conferenceId: conference._id,
+      attendanceMarked: true
+    });
+
+    // Count eligible reviewers (submitted ACCEPT/REJECT reviews)
+    const reviews = await Review.find({
+      trackId: { $in: trackIds },
+      status: 'submitted',
+      recommendation: { $in: ['ACCEPT', 'REJECT'] }
+    }).distinct('reviewerId');
+    const eligibleReviewers = reviews.length;
+
+    // Count already generated certificates
+    const existingAuthorCerts = await Certificate.countDocuments({
+      conferenceId: conference._id,
+      type: 'presentation'
+    });
+
+    const existingParticipantCerts = await Certificate.countDocuments({
+      conferenceId: conference._id,
+      type: 'participation'
+    });
+
+    const existingReviewerCerts = await Certificate.countDocuments({
+      conferenceId: conference._id,
+      type: 'reviewer'
+    });
+
+    res.json({
+      success: true,
+      data: {
+        eligible: {
+          authors: eligibleAuthors,
+          participants: eligibleParticipants,
+          reviewers: eligibleReviewers
+        },
+        existing: {
+          authors: existingAuthorCerts,
+          participants: existingParticipantCerts,
+          reviewers: existingReviewerCerts
+        },
+        pending: {
+          authors: Math.max(0, eligibleAuthors - existingAuthorCerts),
+          participants: Math.max(0, eligibleParticipants - existingParticipantCerts),
+          reviewers: Math.max(0, eligibleReviewers - existingReviewerCerts)
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Get certificate stats error:', error);
+    res.status(500).json({ success: false, message: 'Error fetching certificate stats', error: error.message });
   }
 });
 
@@ -726,6 +1058,52 @@ router.get('/conferences/:id/participants', async (req, res) => {
     res.status(500).json({ success: false, message: 'Error fetching participants', error: error.message });
   }
 });
+
+/**
+ * @route   POST /api/organizer/conferences/:id/signature
+ * @desc    Upload and attach General Chair signature image for a conference
+ * @access  Private (Organizer)
+ */
+router.post(
+  '/conferences/:id/signature',
+  setUploadType('signatures'),
+  upload.single('signature'),
+  async (req, res) => {
+    try {
+      const conference = await Conference.findOne({
+        _id: req.params.id,
+        organizerId: req.user.userId
+      });
+
+      if (!conference) {
+        return res.status(404).json({ success: false, message: 'Conference not found' });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ success: false, message: 'Signature file is required' });
+      }
+
+      // Store relative path so it can be resolved on the server
+      const relativePath = `uploads/signatures/${req.file.filename}`;
+      conference.generalChairSignaturePath = relativePath;
+      await conference.save();
+
+      res.status(201).json({
+        success: true,
+        message: 'Signature uploaded successfully',
+        data: {
+          path: relativePath,
+          originalname: req.file.originalname
+        }
+      });
+    } catch (error) {
+      console.error('Upload signature error:', error);
+      res
+        .status(500)
+        .json({ success: false, message: 'Error uploading signature', error: error.message });
+    }
+  }
+);
 
 /**
  * @route   GET /api/organizer/reviews

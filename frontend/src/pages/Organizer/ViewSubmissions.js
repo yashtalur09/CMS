@@ -76,9 +76,8 @@ const ViewSubmissions = () => {
 
   const openSubmissionDetails = async (submission) => {
     setSelectedSubmission(submission);
-    // Only pre-fill decision if it's already accepted or rejected
-    const validDecision = ['accepted', 'rejected'].includes(submission.status) ? submission.status : '';
-    setDecision(validDecision);
+    // Pre-fill decision based on submission status
+    setDecision(submission.status || '');
     setFeedback(submission.feedback || '');
     setScheduleDate(submission.scheduleDate ? submission.scheduleDate.split('T')[0] : '');
     setScheduleTime(submission.scheduleTime || '');
@@ -465,10 +464,9 @@ const ViewSubmissions = () => {
               <div className="border-t pt-6">
                 <h3 className="font-semibold text-gray-900 mb-4">Make Decision</h3>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                <div className="grid grid-cols-3 gap-3 mb-4">
                   {[
                     { value: 'accepted', label: 'Accept', color: 'border-green-600 bg-green-50' },
-                    { value: 'revision', label: 'Request Revision', color: 'border-yellow-600 bg-yellow-50' },
                     { value: 'rejected', label: 'Reject', color: 'border-red-600 bg-red-50' },
                     { value: 'under_review', label: 'Keep Under Review', color: 'border-blue-600 bg-blue-50' }
                   ].map((opt) => (
@@ -476,10 +474,16 @@ const ViewSubmissions = () => {
                       key={opt.value}
                       type="button"
                       onClick={() => setDecision(opt.value)}
-                      className={`p-3 rounded-lg border-2 text-center transition-all ${decision === opt.value
-                        ? opt.color + ' border-2'
-                        : 'border-gray-200 hover:border-gray-300'
-                        }`}
+                      disabled={selectedSubmission.status === 'accepted' || selectedSubmission.status === 'rejected'}
+                      className={`p-3 rounded-lg border-2 text-center transition-all ${
+                        decision === opt.value
+                          ? opt.color + ' border-2'
+                          : 'border-gray-200 hover:border-gray-300'
+                        } ${
+                        (selectedSubmission.status === 'accepted' || selectedSubmission.status === 'rejected')
+                          ? 'opacity-50 cursor-not-allowed'
+                          : ''
+                      }`}
                     >
                       <span className="font-medium text-sm">{opt.label}</span>
                     </button>
@@ -495,6 +499,7 @@ const ViewSubmissions = () => {
                     onChange={(e) => setFeedback(e.target.value)}
                     placeholder="Provide feedback for the author..."
                     rows={3}
+                    disabled={selectedSubmission.status === 'accepted' || selectedSubmission.status === 'rejected'}
                   />
                 </div>
 
@@ -508,6 +513,7 @@ const ViewSubmissions = () => {
                         type="date"
                         value={scheduleDate}
                         onChange={(e) => setScheduleDate(e.target.value)}
+                        disabled={selectedSubmission.status === 'accepted' || selectedSubmission.status === 'rejected'}
                       />
                     </div>
                     <div>
@@ -518,6 +524,7 @@ const ViewSubmissions = () => {
                         type="time"
                         value={scheduleTime}
                         onChange={(e) => setScheduleTime(e.target.value)}
+                        disabled={selectedSubmission.status === 'accepted' || selectedSubmission.status === 'rejected'}
                       />
                     </div>
                   </div>
@@ -526,7 +533,7 @@ const ViewSubmissions = () => {
                 <div className="flex gap-3">
                   <Button
                     onClick={handleDecision}
-                    disabled={saving || !decision}
+                    disabled={saving || !decision || selectedSubmission.status === 'accepted' || selectedSubmission.status === 'rejected'}
                     fullWidth
                   >
                     {saving ? 'Saving...' : 'Save Decision'}
