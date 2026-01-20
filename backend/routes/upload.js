@@ -21,10 +21,9 @@ const storage = new CloudinaryStorage({
         allowed_formats: ['pdf', 'doc', 'docx'],
         resource_type: 'raw', // For non-image files (PDFs, docs, etc.)
         public_id: (req, file) => {
-            // Create unique filename with timestamp
+            // Create unique filename with timestamp (without extension - Cloudinary adds it automatically)
             const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-            const ext = path.extname(file.originalname);
-            return `paper-${uniqueSuffix}${ext}`;
+            return `paper-${uniqueSuffix}`;
         }
     }
 });
