@@ -95,9 +95,13 @@ export default function SubmissionDetails() {
         return <Badge variant={variants[status] || 'default'}>{statusLabels[status] || status}</Badge>;
     };
 
-    const getFileUrl = (fileUrl) => {
+    const getFileUrl = (fileUrl, forDownload = false) => {
         // If it's already a full URL (from Cloudinary), use it directly
         if (fileUrl && (fileUrl.startsWith('http://') || fileUrl.startsWith('https://'))) {
+            // For Cloudinary URLs, add attachment flag for downloads
+            if (fileUrl.includes('cloudinary.com') && forDownload) {
+                return fileUrl.replace('/upload/', '/upload/fl_attachment/');
+            }
             return fileUrl;
         }
         // If it's a relative path (legacy uploads), prepend backend URL

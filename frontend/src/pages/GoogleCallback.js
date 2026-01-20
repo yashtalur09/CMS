@@ -7,7 +7,7 @@ import Loading from '../components/Loading';
 const GoogleCallback = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { setUser } = useAuth();
+  const { updateUser } = useAuth();
   const [error, setError] = useState('');
   const [status, setStatus] = useState('Authenticating with Google...');
   const isProcessingRef = useRef(false);
@@ -62,7 +62,7 @@ const GoogleCallback = () => {
         // Store token and user data
         localStorage.setItem('token', response.data.data.token);
         localStorage.setItem('user', JSON.stringify(response.data.data.user));
-        setUser(response.data.data.user);
+        updateUser(response.data.data.user);
 
         // Redirect to dashboard
         setTimeout(() => {
@@ -94,7 +94,7 @@ const GoogleCallback = () => {
     } finally {
       isProcessingRef.current = false;
     }
-  }, [location.search, navigate, setUser]);
+  }, [location.search, navigate, updateUser]);
 
   useEffect(() => {
     handleCallback();

@@ -32,9 +32,14 @@ const ReviewPaper = () => {
   });
 
   // Helper function to get the correct file URL
-  const getFileUrl = (fileUrl) => {
+  const getFileUrl = (fileUrl, forDownload = false) => {
     // If it's already a full URL (from Cloudinary), use it directly
     if (fileUrl && (fileUrl.startsWith('http://') || fileUrl.startsWith('https://'))) {
+      // For Cloudinary URLs, add attachment flag for downloads
+      if (fileUrl.includes('cloudinary.com') && forDownload) {
+        // Add fl_attachment flag for forced download
+        return fileUrl.replace('/upload/', '/upload/fl_attachment/');
+      }
       return fileUrl;
     }
     // If it's a relative path (legacy uploads), prepend backend URL
@@ -317,7 +322,7 @@ const ReviewPaper = () => {
                   📄 Preview Paper
                 </Button>
                 <a
-                  href={getFileUrl(submission.fileUrl)}
+                  href={getFileUrl(submission.fileUrl, true)}
                   download
                   className="inline-flex items-center px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 border border-blue-600 hover:border-blue-700 rounded-lg transition-colors"
                 >
@@ -447,7 +452,7 @@ const ReviewPaper = () => {
             </div>
             <div className="px-6 py-4 border-t flex justify-end gap-3">
               <a
-                href={getFileUrl(submission.fileUrl)}
+                href={getFileUrl(submission.fileUrl, true)}
                 download
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
               >

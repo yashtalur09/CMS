@@ -17,9 +17,13 @@ const MyAssignedPapers = () => {
   const [selectedSubmission, setSelectedSubmission] = useState(null);
 
   // Helper function to get the correct file URL
-  const getFileUrl = (fileUrl) => {
+  const getFileUrl = (fileUrl, forDownload = false) => {
     // If it's already a full URL (from Cloudinary), use it directly
     if (fileUrl && (fileUrl.startsWith('http://') || fileUrl.startsWith('https://'))) {
+      // For Cloudinary URLs, add attachment flag for downloads
+      if (fileUrl.includes('cloudinary.com') && forDownload) {
+        return fileUrl.replace('/upload/', '/upload/fl_attachment/');
+      }
       return fileUrl;
     }
     // If it's a relative path (legacy uploads), prepend backend URL
@@ -175,7 +179,7 @@ const MyAssignedPapers = () => {
                     📄 View
                   </Button>
                   <a
-                    href={getFileUrl(submission.fileUrl)}
+                    href={getFileUrl(submission.fileUrl, true)}
                     download
                     className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 border border-blue-600 hover:border-blue-700 rounded-md transition-colors"
                   >
