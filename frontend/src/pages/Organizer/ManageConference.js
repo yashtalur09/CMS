@@ -13,7 +13,8 @@ import {
   getTracks,
   createTrack,
   updateTrack,
-  deleteTrack
+  deleteTrack,
+  uploadGeneralChairSignature,
 } from '../../utils/api';
 
 const ManageConference = () => {
@@ -34,6 +35,8 @@ const ManageConference = () => {
   const [trackForm, setTrackForm] = useState({ name: '', description: '' });
   const [trackSaving, setTrackSaving] = useState(false);
 
+  const [uploadingSignature, setUploadingSignature] = useState(false);
+
   // Delete confirmation
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
@@ -44,7 +47,8 @@ const ManageConference = () => {
     venue: '',
     startDate: '',
     endDate: '',
-    submissionDeadline: ''
+    submissionDeadline: '',
+    generalChairSignaturePath: ''
   });
 
   useEffect(() => {
@@ -72,13 +76,39 @@ const ManageConference = () => {
         venue: confData.venue || '',
         startDate: confData.startDate ? confData.startDate.split('T')[0] : '',
         endDate: confData.endDate ? confData.endDate.split('T')[0] : '',
-        submissionDeadline: confData.submissionDeadline ? confData.submissionDeadline.split('T')[0] : ''
+        submissionDeadline: confData.submissionDeadline ? confData.submissionDeadline.split('T')[0] : '',
+        generalChairSignaturePath: confData.generalChairSignaturePath || ''
       });
     } catch (err) {
       console.error('Error fetching data:', err);
       setError(err.response?.data?.message || 'Failed to load conference');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSignatureUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file || !conferenceId) return;
+
+    try {
+      setUploadingSignature(true);
+      setError(null);
+      const response = await uploadGeneralChairSignature(conferenceId, file);
+      const newPath = response?.data?.path || response?.data?.data?.path || response?.path;
+
+      setFormData((prev) => ({
+        ...prev,
+        generalChairSignaturePath: newPath || prev.generalChairSignaturePath,
+      }));
+
+      setSuccess('Signature uploaded successfully!');
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      console.error('Error uploading signature:', err);
+      setError(err.response?.data?.message || 'Failed to upload signature');
+    } finally {
+      setUploadingSignature(false);
     }
   };
 
@@ -193,6 +223,9 @@ const ManageConference = () => {
             <Button variant="secondary" onClick={() => navigate(`/organizer/conferences/${conferenceId}/assignments`)}>
               👥 Assignments
             </Button>
+            <Button variant="secondary" onClick={() => navigate(`/organizer/conferences/${conferenceId}/authors`)}>
+              🧾 Certificates
+            </Button>
           </div>
         </div>
 
@@ -277,6 +310,37 @@ const ManageConference = () => {
                   value={formData.submissionDeadline}
                   onChange={(e) => handleInputChange('submissionDeadline', e.target.value)}
                 />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                General Chair Signature
+              </label>
+              <div className="space-y-2">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleSignatureUpload}
+                  disabled={uploadingSignature}
+                  className="block w-full text-sm text-gray-700
+                             file:mr-4 file:py-2 file:px-4
+                             file:rounded-md file:border-0
+                             file:text-sm file:font-semibold
+                             file:bg-primary-50 file:text-primary-700
+                             hover:file:bg-primary-100"
+                />
+                {uploadingSignature && (
+                  <p className="text-xs text-gray-500">Uploading signature...</p>
+                )}
+                {formData.generalChairSignaturePath && (
+                  <p className="text-xs text-emerald-700">
+                    Current signature: {formData.generalChairSignaturePath}
+                  </p>
+                )}
+                <p className="mt-1 text-xs text-gray-500">
+                  This image will be rendered above the signature line on generated certificates.
+                </p>
               </div>
             </div>
 

@@ -17,13 +17,15 @@ const Navbar = () => {
     author: [
       { to: '/author/dashboard', label: 'Dashboard' },
       { to: '/author/discover', label: 'Discover Conferences' },
-      { to: '/author/submissions', label: 'My Submissions' }
+      { to: '/author/submissions', label: 'My Submissions' },
+      { to: '/author/certificates', label: 'My Certificates' }
     ],
     reviewer: [
       { to: '/reviewer/dashboard', label: 'Dashboard' },
       { to: '/reviewer/conferences', label: 'Browse Conferences' },
       { to: '/reviewer/bids', label: 'My Bids' },
-      { to: '/reviewer/reviews', label: 'My Reviews' }
+      { to: '/reviewer/reviews', label: 'My Reviews' },
+      { to: '/reviewer/certificates', label: 'My Certificates' }
     ],
     participant: [
       { to: '/participant/dashboard', label: 'Dashboard' },

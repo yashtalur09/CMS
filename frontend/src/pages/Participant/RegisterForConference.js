@@ -19,7 +19,7 @@ const RegisterForConference = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
-    registrationType: 'attendee',
+    registrationType: 'participant',
     specialRequirements: '',
     dietaryRestrictions: '',
     emergencyContact: '',
@@ -175,17 +175,6 @@ const RegisterForConference = () => {
           <h3 className="text-xl font-bold text-gray-900 mb-6">Registration Details</h3>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            <Select
-              label="Registration Type"
-              name="registrationType"
-              value={formData.registrationType}
-              onChange={handleChange}
-              required
-              helperText="Select whether you're attending as a participant or presenting"
-            >
-              <option value="attendee">Attendee</option>
-              <option value="presenter">Presenter</option>
-            </Select>
 
             <Textarea
               label="Special Requirements"
@@ -230,7 +219,7 @@ const RegisterForConference = () => {
               <h4 className="text-sm font-semibold text-blue-900 mb-2">Registration Summary</h4>
               <ul className="text-sm text-blue-800 space-y-1">
                 <li>• Conference: {conference.name}</li>
-                <li>• Type: {formData.registrationType === 'attendee' ? 'Attendee' : 'Presenter'}</li>
+                <li>• Type: Participant</li>
                 {conference.fee > 0 ? (
                   <li>• Fee: ${conference.fee} (Payment required)</li>
                 ) : (

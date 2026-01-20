@@ -21,6 +21,7 @@ import ManageConference from './pages/Organizer/ManageConference';
 import ViewSubmissions from './pages/Organizer/ViewSubmissions';
 import ManageBids from './pages/Organizer/ManageBids';
 import ManageAssignments from './pages/Organizer/ManageAssignments';
+import ManageAuthors from './pages/Organizer/ManageAuthors';
 
 // Author Pages
 import AuthorDashboard from './pages/Author/Dashboard';
@@ -29,6 +30,7 @@ import ConferenceDetails from './pages/Author/ConferenceDetails';
 import SubmitPaper from './pages/Author/SubmitPaper';
 import MySubmissions from './pages/Author/MySubmissions';
 import SubmissionDetails from './pages/Author/SubmissionDetails';
+import AuthorMyCertificates from './pages/Author/MyCertificates';
 
 // Reviewer Pages
 import ReviewerDashboard from './pages/Reviewer/Dashboard';
@@ -39,6 +41,7 @@ import BidSubmissions from './pages/Reviewer/BidSubmissions';
 import ReviewPaper from './pages/Reviewer/ReviewPaper';
 import MyReviews from './pages/Reviewer/MyReviews';
 import MyAssignments from './pages/Reviewer/MyAssignments';
+import ReviewerMyCertificates from './pages/Reviewer/MyCertificates';
 
 // Participant Pages
 import ParticipantDashboard from './pages/Participant/Dashboard';
@@ -135,6 +138,14 @@ function App() {
                 }
               />
               <Route
+                path="/organizer/conferences/:conferenceId/authors"
+                element={
+                  <ProtectedRoute allowedRoles={['organizer']}>
+                    <ManageAuthors />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
                 path="/organizer/conference/:conferenceId"
                 element={
                   <ProtectedRoute allowedRoles={['organizer']}>
@@ -189,6 +200,14 @@ function App() {
                 element={
                   <ProtectedRoute allowedRoles={['author']}>
                     <SubmissionDetails />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/author/certificates"
+                element={
+                  <ProtectedRoute allowedRoles={['author']}>
+                    <AuthorMyCertificates />
                   </ProtectedRoute>
                 }
               />
@@ -279,6 +298,14 @@ function App() {
                 element={
                   <ProtectedRoute allowedRoles={['reviewer']}>
                     <MyAssignments />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/reviewer/certificates"
+                element={
+                  <ProtectedRoute allowedRoles={['reviewer']}>
+                    <ReviewerMyCertificates />
                   </ProtectedRoute>
                 }
               />

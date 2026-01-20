@@ -196,7 +196,7 @@ const Participants = () => {
                         Registered
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
+                        Payment
                       </th>
                     </tr>
                   </thead>
@@ -222,11 +222,18 @@ const Participants = () => {
                           {formatDateTime(registration.registeredAt)}
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
-                          <Badge variant={
-                            registration.paymentStatus === 'completed' ? 'success' :
-                              registration.paymentStatus === 'not_required' ? 'default' : 'warning'
-                          }>
-                            {registration.paymentStatus === 'not_required' ? 'Confirmed' : registration.paymentStatus}
+                          <Badge
+                            variant={
+                              registration.paymentStatus === 'completed'
+                                ? 'success'
+                                : registration.paymentStatus === 'not_required'
+                                ? 'default'
+                                : 'warning'
+                            }
+                          >
+                            {registration.paymentStatus === 'not_required'
+                              ? 'Confirmed'
+                              : registration.paymentStatus}
                           </Badge>
                         </td>
                       </tr>

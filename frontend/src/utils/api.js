@@ -464,6 +464,76 @@ export const getParticipantCertificates = async () => {
   return res.data;
 };
 
+export const downloadParticipantCertificate = async (certificateId) => {
+  const res = await axiosInstance.get(`/participant/certificates/${certificateId}/download`, {
+    responseType: 'blob',
+  });
+  return res.data;
+};
+
+// ============ AUTHOR CERTIFICATE APIs ============
+
+export const getAuthorCertificates = async () => {
+  const res = await axiosInstance.get('/author/certificates');
+  return res.data;
+};
+
+export const downloadAuthorCertificate = async (certificateId) => {
+  const res = await axiosInstance.get(`/author/certificates/${certificateId}/download`, {
+    responseType: 'blob',
+  });
+  return res.data;
+};
+
+// ============ REVIEWER CERTIFICATE APIs ============
+
+export const getReviewerCertificates = async () => {
+  const res = await axiosInstance.get('/reviewer/certificates');
+  return res.data;
+};
+
+export const downloadReviewerCertificate = async (certificateId) => {
+  const res = await axiosInstance.get(`/reviewer/certificates/${certificateId}/download`, {
+    responseType: 'blob',
+  });
+  return res.data;
+};
+
+// ============ ORGANIZER CERTIFICATE APIs ============
+
+export const markAuthorAttendance = async (submissionId, attended) => {
+  const res = await axiosInstance.put(`/organizer/submissions/${submissionId}/attendance`, {
+    attended,
+  });
+  return res.data;
+};
+
+export const getConferenceAuthors = async (conferenceId) => {
+  const res = await axiosInstance.get(`/organizer/conferences/${conferenceId}/authors`);
+  return res.data;
+};
+
+export const getCertificateStats = async (conferenceId) => {
+  const res = await axiosInstance.get(`/organizer/conferences/${conferenceId}/certificate-stats`);
+  return res.data;
+};
+
+export const uploadGeneralChairSignature = async (conferenceId, file) => {
+  const formData = new FormData();
+  formData.append('signature', file);
+  const res = await axiosInstance.post(
+    `/organizer/conferences/${conferenceId}/signature`,
+    formData,
+    {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }
+  );
+  return res.data;
+};
+
 // ============ DEFAULT EXPORT (for legacy support) ============
 
 export default axiosInstance;
+

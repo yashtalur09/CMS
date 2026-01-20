@@ -6,16 +6,15 @@ import Badge from '../../components/Badge';
 import Button from '../../components/Button';
 import Loading from '../../components/Loading';
 import { useToast } from '../../context/ToastContext';
-import { getParticipantCertificates } from '../../utils/api';
+import { getParticipantCertificates, downloadParticipantCertificate } from '../../utils/api';
 
 const MyCertificates = () => {
   const navigate = useNavigate();
   const toast = useToast();
   const [certificates, setCertificates] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [downloading, setDownloading] = useState(null);
   const [error, setError] = useState(null);
-
-  const API_BASE_URL = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5000';
 
   useEffect(() => {
     fetchCertificates();
@@ -26,7 +25,13 @@ const MyCertificates = () => {
       setLoading(true);
       setError(null);
       const response = await getParticipantCertificates();
-      setCertificates(response.data?.certificates || response.data || response || []);
+      const data =
+        response?.data?.certificates ||
+        response?.data?.data?.certificates ||
+        response?.data?.data ||
+        response?.data ||
+        [];
+      setCertificates(data);
     } catch (err) {
       console.error('Error fetching certificates:', err);
       setError(err.response?.data?.message || 'Failed to load certificates');
@@ -43,11 +48,29 @@ const MyCertificates = () => {
     });
   };
 
-  const handleDownload = (certificate) => {
-    if (certificate.fileUrl) {
-      window.open(`${API_BASE_URL}${certificate.fileUrl}`, '_blank');
-    } else {
-      toast.warning('Certificate file not available yet');
+  const handleDownload = async (certificate) => {
+    try {
+      setDownloading(certificate._id);
+
+      const blob = await downloadParticipantCertificate(certificate._id);
+      const certificateId = certificate.uniqueCertificateId || certificate.uniqueId || certificate._id;
+
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Certificate_${certificateId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      toast.success('Certificate downloaded successfully!');
+    } catch (err) {
+      console.error('Error downloading certificate:', err);
+      toast.error('Failed to download certificate');
+    } finally {
+      setDownloading(null);
     }
   };
 
@@ -132,18 +155,11 @@ const MyCertificates = () => {
                     </div>
                   )}
 
-                  {certificate.type && (
+                  {(certificate.uniqueCertificateId || certificate.uniqueId) && (
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">Type</span>
-                      <Badge variant="info">{certificate.type}</Badge>
-                    </div>
-                  )}
-
-                  {certificate.status && (
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">Status</span>
-                      <Badge variant={certificate.status === 'issued' ? 'success' : 'warning'}>
-                        {certificate.status.charAt(0).toUpperCase() + certificate.status.slice(1)}
+                      <span className="text-gray-600">Certificate ID</span>
+                      <Badge variant="info">
+                        {certificate.uniqueCertificateId || certificate.uniqueId}
                       </Badge>
                     </div>
                   )}
@@ -154,12 +170,25 @@ const MyCertificates = () => {
                   <Button
                     fullWidth
                     onClick={() => handleDownload(certificate)}
+                    disabled={downloading === certificate._id}
                     className="flex items-center justify-center gap-2"
                   >
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                    </svg>
-                    Download Certificate
+                    {downloading === certificate._id ? (
+                      <>
+                        <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        Downloading...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        Download Certificate
+                      </>
+                    )}
                   </Button>
                 </div>
               </Card>
@@ -191,3 +220,4 @@ const MyCertificates = () => {
 };
 
 export default MyCertificates;
+
