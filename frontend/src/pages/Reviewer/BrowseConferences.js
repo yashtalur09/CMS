@@ -255,7 +255,7 @@ const MyAssignedPapers = () => {
               <div className="flex gap-2">
                 <button
                   onClick={() => viewPdfInNewTab(selectedSubmission.fileUrl)}
-                  className="px-4 py-2 text-sm font-medium text-blue-600 border border-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                  className="hidden px-4 py-2 text-sm font-medium text-blue-600 border border-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                 >
                   📄 Open in New Tab
                 </button>

@@ -76,12 +76,19 @@ export const AuthProvider = ({ children }) => {
 
   function updateUser(updatedUser) {
     if (!updatedUser) return;
-    
-    const currentToken = auth.token;
-    
+
+    // Get token from localStorage (in case it was just set by OAuth callback)
+    const currentToken = localStorage.getItem('token') || auth.token;
+
+    // Ensure axios headers are set with the current token
+    if (currentToken) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${currentToken}`;
+      setAuthToken(currentToken);
+    }
+
     // Update localStorage
     localStorage.setItem('user', JSON.stringify(updatedUser));
-    
+
     // Force state update with new object reference to trigger re-renders
     setAuth({
       token: currentToken,

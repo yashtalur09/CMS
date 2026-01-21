@@ -328,6 +328,7 @@ const ReviewPaper = () => {
                 <Button
                   variant="outline"
                   onClick={() => setShowPdfModal(true)}
+                  className="hidden"
                 >
                   📄 Preview Paper
                 </Button>
@@ -480,7 +481,7 @@ const ReviewPaper = () => {
               <div className="flex gap-3">
                 <button
                   onClick={() => viewPdfInNewTab(submission.fileUrl)}
-                  className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 border border-blue-600 hover:border-blue-700 rounded-lg transition-colors"
+                  className="hidden px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 border border-blue-600 hover:border-blue-700 rounded-lg transition-colors"
                 >
                   📄 Open in New Tab
                 </button>

@@ -388,7 +388,7 @@ const ViewSubmissions = () => {
                     <div className="flex gap-2">
                       <button
                         onClick={() => viewPdfInNewTab(selectedSubmission.fileUrl)}
-                        className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition"
+                        className="hidden px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition"
                       >
                         📄 View Paper
                       </button>
@@ -467,8 +467,8 @@ const ViewSubmissions = () => {
                       onClick={() => setDecision(opt.value)}
                       disabled={selectedSubmission.status === 'accepted' || selectedSubmission.status === 'rejected'}
                       className={`p-3 rounded-lg border-2 text-center transition-all ${decision === opt.value
-                          ? opt.color + ' border-2'
-                          : 'border-gray-200 hover:border-gray-300'
+                        ? opt.color + ' border-2'
+                        : 'border-gray-200 hover:border-gray-300'
                         } ${(selectedSubmission.status === 'accepted' || selectedSubmission.status === 'rejected')
                           ? 'opacity-50 cursor-not-allowed'
                           : ''

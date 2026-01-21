@@ -226,9 +226,9 @@ const Home = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <img 
-                src="/logo.png" 
-                alt="CMS Logo" 
+              <img
+                src="/logo.png"
+                alt="CMS Logo"
                 className="w-12 h-12 rounded-xl object-contain shadow-lg"
               />
               <div>
@@ -238,7 +238,7 @@ const Home = () => {
                 <p className="text-sm text-gray-500">Academic Excellence, Simplified</p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="hidden flex items-center gap-3">
               <button
                 onClick={() => navigate('/register')}
                 className="px-6 py-2.5 rounded-xl border-2 border-blue-600 text-blue-600 font-medium hover:bg-blue-50 transition-all duration-300"
@@ -429,9 +429,9 @@ const Home = () => {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
             <div className="md:col-span-2">
               <div className="flex items-center gap-3 mb-4">
-                <img 
-                  src="/logo.png" 
-                  alt="CMS Logo" 
+                <img
+                  src="/logo.png"
+                  alt="CMS Logo"
                   className="w-10 h-10 rounded-xl object-contain"
                 />
                 <span className="text-xl font-bold">CMS</span>

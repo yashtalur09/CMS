@@ -464,7 +464,7 @@ export default function SubmissionDetails() {
                                     </div>
                                     <button
                                         onClick={() => viewPdfInNewTab(submission.fileUrl)}
-                                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-md"
+                                        className="hidden px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-md"
                                     >
                                         📄 View Paper
                                     </button>
