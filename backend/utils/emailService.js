@@ -6,7 +6,7 @@ const createResendClient = () => {
   if (process.env.RESEND_API_KEY) {
     return new Resend(process.env.RESEND_API_KEY);
   }
-  
+
   // Development fallback - logs to console (maintains existing behavior)
   return {
     emails: {
@@ -320,7 +320,7 @@ const templates = {
 const sendEmail = async (to, template, cc = null) => {
   try {
     const resend = createResendClient();
-    
+
     // Prepare email data in Resend format
     const emailData = {
       from: process.env.EMAIL_FROM || 'onboarding@resend.dev',
@@ -337,18 +337,18 @@ const sendEmail = async (to, template, cc = null) => {
 
     // Send via Resend API
     const { data, error } = await resend.emails.send(emailData);
-    
+
     if (error) {
       throw new Error(error.message || 'Resend API error');
     }
 
-    console.log('✅ Email sent:', { 
-      to: emailData.to, 
-      cc: emailData.cc || 'None', 
-      subject: template.subject, 
-      messageId: data.id 
+    console.log('✅ Email sent:', {
+      to: emailData.to,
+      cc: emailData.cc || 'None',
+      subject: template.subject,
+      messageId: data.id
     });
-    
+
     // Return in format compatible with existing code (maintains behavior)
     return { messageId: data.id, ...data };
   } catch (error) {
