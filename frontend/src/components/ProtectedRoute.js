@@ -16,10 +16,10 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
 
   if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
         <div className="text-center">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">Access Denied</h1>
-          <p className="text-lg text-gray-600 mb-8">
+          <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">Access Denied</h1>
+          <p className="text-base sm:text-lg text-gray-600 mb-6 sm:mb-8">
             You don't have permission to access this page.
           </p>
           <a 

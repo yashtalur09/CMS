@@ -254,10 +254,10 @@ const ReviewPaper = () => {
           </div>
         )}
 
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
           {isUpdateMode ? '🔄 Update Review' : '✏️ Write Review'}
         </h1>
-        <p className="text-gray-600 mb-8">
+        <p className="text-sm sm:text-base text-gray-600 mb-6 sm:mb-8">
           {isUpdateMode ? 'Review the revised paper and update your evaluation' : 'Review this paper submission'}
         </p>
 

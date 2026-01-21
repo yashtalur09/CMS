@@ -97,7 +97,7 @@ const EventDetails = () => {
         <Card className="mb-6">
           <div className="flex flex-col md:flex-row md:justify-between md:items-start mb-6">
             <div className="flex-1">
-              <h1 className="text-3xl font-bold text-gray-900 mb-3">{conference.name}</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3">{conference.name}</h1>
               <div className="flex flex-wrap gap-2 mb-4">
                 <Badge variant={conference.status === 'active' ? 'success' : 'default'}>
                   {conference.status}

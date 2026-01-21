@@ -150,9 +150,9 @@ const MyReviews = () => {
       <Navbar />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 page-transition">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">My Reviews & Bids</h1>
-          <p className="text-gray-600 mt-1">Track your review history and paper assignments</p>
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">My Reviews & Bids</h1>
+          <p className="text-sm sm:text-base text-gray-600 mt-1">Track your review history and paper assignments</p>
         </div>
 
         {/* Stats Cards */}
@@ -447,10 +447,10 @@ const MyReviews = () => {
               <p className="text-gray-700">{selectedReview.submissionId?.title || 'Untitled'}</p>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <h3 className="font-semibold text-gray-900 mb-2">Score</h3>
-                <div className={`text-3xl font-bold ${getScoreColor(selectedReview.score)}`}>
+                <div className={`text-2xl sm:text-3xl font-bold ${getScoreColor(selectedReview.score)}`}>
                   {selectedReview.score}/10
                 </div>
               </div>

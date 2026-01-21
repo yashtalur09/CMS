@@ -85,9 +85,9 @@ const AuthorDashboard = () => {
     <>
       <Navbar />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Author Dashboard</h1>
-          <p className="text-gray-600 mt-1">Welcome back, {user?.name || 'Author'}</p>
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Author Dashboard</h1>
+          <p className="text-sm sm:text-base text-gray-600 mt-1">Welcome back, {user?.name || 'Author'}</p>
         </div>
 
         {error && (
@@ -142,8 +142,8 @@ const AuthorDashboard = () => {
 
         {/* My Submissions */}
         <div className="mb-8">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-2xl font-bold text-gray-900">My Submissions</h2>
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900">My Submissions</h2>
             <Button variant="outline" size="sm" onClick={() => navigate('/author/submissions')}>
               View All
             </Button>
@@ -183,8 +183,8 @@ const AuthorDashboard = () => {
 
         {/* Active Conferences */}
         <div>
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-2xl font-bold text-gray-900">Active Conferences</h2>
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Active Conferences</h2>
             <Button onClick={() => navigate('/author/discover')}>
               Discover More
             </Button>

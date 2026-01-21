@@ -254,12 +254,12 @@ const ManageBids = () => {
         <>
             <Navbar />
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div className="flex justify-between items-center mb-8">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-6 sm:mb-8">
                     <div>
-                        <h1 className="text-3xl font-bold text-gray-900">Manage Bids</h1>
-                        <p className="text-gray-600 mt-1">Review and approve reviewer bids</p>
+                        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Manage Bids</h1>
+                        <p className="text-sm sm:text-base text-gray-600 mt-1">Review and approve reviewer bids</p>
                     </div>
-                    <div className="flex gap-3">
+                    <div className="flex gap-3 flex-wrap">
                         <Button variant="secondary" onClick={() => navigate(`/organizer/conferences/${conferenceId}/assignments`)}>
                             View Assignments
                         </Button>

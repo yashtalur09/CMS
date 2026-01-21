@@ -80,9 +80,9 @@ const Participants = () => {
     <>
       <Navbar />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Conference Participants</h1>
-          <p className="text-gray-600 mt-1">View registered participants for your conferences</p>
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Conference Participants</h1>
+          <p className="text-sm sm:text-base text-gray-600 mt-1">View registered participants for your conferences</p>
         </div>
 
         {conferences.length === 0 ? (
@@ -179,7 +179,7 @@ const Participants = () => {
                 No participants registered yet.
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto table-responsive">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>

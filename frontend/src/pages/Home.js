@@ -224,30 +224,30 @@ const Home = () => {
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <img
                 src="/logo.png"
                 alt="eConfMate Logo"
-                className="h-12 w-12 object-contain rounded-xl shadow-lg transition-transform duration-200 hover:scale-110"
+                className="h-10 w-10 sm:h-12 sm:w-12 object-contain rounded-xl shadow-lg transition-transform duration-200 hover:scale-110"
               />
               <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-primary-600 via-primary-700 to-blue-600 bg-clip-text text-transparent">
+                <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-primary-600 via-primary-700 to-blue-600 bg-clip-text text-transparent">
                   eConfMate
                 </h1>
-                <p className="text-sm text-gray-500">Academic Excellence, Simplified</p>
+                <p className="text-xs sm:text-sm text-gray-500 hidden sm:block">Academic Excellence, Simplified</p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
               <button
                 onClick={() => navigate('/register')}
-                className="px-6 py-2.5 rounded-xl border-2 border-blue-600 text-blue-600 font-medium hover:bg-blue-50 transition-all duration-300"
+                className="flex-1 sm:flex-none px-4 sm:px-6 py-2.5 rounded-xl border-2 border-blue-600 text-blue-600 font-medium hover:bg-blue-50 transition-all duration-300 text-sm sm:text-base min-h-[44px]"
               >
                 Register
               </button>
               <button
                 onClick={() => navigate('/login')}
-                className="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 transition-all duration-300 shadow-lg shadow-blue-600/20"
+                className="flex-1 sm:flex-none px-4 sm:px-6 py-2.5 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 transition-all duration-300 shadow-lg shadow-blue-600/20 text-sm sm:text-base min-h-[44px]"
               >
                 Sign In
               </button>
@@ -266,7 +266,7 @@ const Home = () => {
             </span>
           </div>
 
-          <h2 className="text-4xl md:text-6xl font-bold mb-6 leading-tight text-gray-900">
+          <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-6 leading-tight text-gray-900">
             The Future of
             <br />
             <span className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent">
@@ -274,7 +274,7 @@ const Home = () => {
             </span>
           </h2>
 
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-12 leading-relaxed">
+          <p className="text-base sm:text-lg md:text-xl text-gray-600 max-w-3xl mx-auto mb-8 sm:mb-12 leading-relaxed px-4 sm:px-0">
             Streamline your academic conferences with our all-in-one platform. From paper submissions to peer reviews,
             from attendee management to certificate generation — we've got you covered.
           </p>
@@ -426,8 +426,8 @@ const Home = () => {
       {/* Footer */}
       <footer className="bg-gray-900 text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
-            <div className="md:col-span-2">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8 mb-8">
+            <div className="col-span-2 md:col-span-2">
               <div className="flex items-center gap-3 mb-4">
                 <img
                   src="/logo.png"

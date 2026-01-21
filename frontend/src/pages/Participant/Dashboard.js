@@ -69,15 +69,15 @@ const ParticipantDashboard = () => {
     <>
       <Navbar />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Participant Dashboard</h1>
-          <p className="text-gray-600 mt-1">Manage your conference registrations</p>
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Participant Dashboard</h1>
+          <p className="text-sm sm:text-base text-gray-600 mt-1">Manage your conference registrations</p>
         </div>
 
         {/* Upcoming Conferences */}
         {data.upcomingConferences.length > 0 && (
           <div className="mb-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Upcoming Conferences</h2>
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4">Upcoming Conferences</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {data.upcomingConferences.map((reg) => (
                 <Card key={reg._id} hoverable>
@@ -106,8 +106,8 @@ const ParticipantDashboard = () => {
 
         {/* Available Conferences */}
         <div className="mb-8">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-2xl font-bold text-gray-900">Available Conferences</h2>
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Available Conferences</h2>
             <Button variant="outline" size="sm" onClick={() => navigate('/participant/events')}>
               View All
             </Button>
@@ -149,7 +149,7 @@ const ParticipantDashboard = () => {
         {/* Past Conferences */}
         {data.pastConferences.length > 0 && (
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Past Conferences</h2>
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4">Past Conferences</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {data.pastConferences.map((reg) => (
                 <Card key={reg._id} className="opacity-75">

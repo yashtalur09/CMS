@@ -28,7 +28,7 @@ const OrganizerDashboard = () => {
       const data = response.data || response;
       const conferencesList = data.conferences || data || [];
       const allConferences = Array.isArray(conferencesList) ? conferencesList : [];
-      
+
       // Filter out expired conferences (endDate in the past OR today)
       const activeConferences = allConferences.filter(conf => {
         if (!conf.endDate) return true;
@@ -40,7 +40,7 @@ const OrganizerDashboard = () => {
         // Conference is active only if endDate is AFTER today (not equal)
         return endDate > today;
       });
-      
+
       setConferences(activeConferences);
     } catch (err) {
       console.error('Error fetching conferences:', err);
@@ -72,14 +72,14 @@ const OrganizerDashboard = () => {
       <Navbar />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Organizer Dashboard</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Organizer Dashboard</h1>
             <p className="text-gray-600 mt-1">Welcome, {user?.name || 'Organizer'}</p>
           </div>
           <Button
             onClick={() => navigate('/organizer/create-conference')}
-            className="bg-blue-600 hover:bg-blue-700"
+            className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto min-h-[44px]"
           >
             + Create Conference
           </Button>

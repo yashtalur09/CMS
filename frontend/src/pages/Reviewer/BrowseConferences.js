@@ -92,10 +92,10 @@ const MyAssignedPapers = () => {
     <>
       <Navbar />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-6 sm:mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">My Assigned Papers</h1>
-            <p className="text-gray-600 mt-1">Review papers assigned to you</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">My Assigned Papers</h1>
+            <p className="text-sm sm:text-base text-gray-600 mt-1">Review papers assigned to you</p>
           </div>
           <Button variant="outline" onClick={() => navigate('/reviewer/browse-conferences')}>
             Browse Conferences

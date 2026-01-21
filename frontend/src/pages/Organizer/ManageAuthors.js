@@ -205,8 +205,8 @@ const ManageAuthors = () => {
             <Navbar />
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 {/* Header */}
-                <div className="mb-8">
-                    <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+                <div className="mb-6 sm:mb-8">
+                    <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm text-gray-600 mb-2">
                         <Link to="/organizer/dashboard" className="hover:text-gray-900">Dashboard</Link>
                         <span>/</span>
                         <Link to={`/organizer/conference/${conferenceId}`} className="hover:text-gray-900">
@@ -215,8 +215,8 @@ const ManageAuthors = () => {
                         <span>/</span>
                         <span className="text-gray-900">Manage Attendance & Certificates</span>
                     </div>
-                    <h1 className="text-3xl font-bold text-gray-900">Manage Attendance & Certificates</h1>
-                    <p className="text-gray-600 mt-1">Mark attendance for authors with accepted papers to enable certificate generation</p>
+                    <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">Manage Attendance & Certificates</h1>
+                    <p className="text-sm sm:text-base text-gray-600 mt-1">Mark attendance for authors with accepted papers to enable certificate generation</p>
                     <Button
                         variant="secondary"
                         className="mt-4"
@@ -363,7 +363,7 @@ const ManageAuthors = () => {
                     </Card>
                 ) : (
                     <Card>
-                        <div className="overflow-x-auto">
+                        <div className="overflow-x-auto table-responsive">
                             <table className="min-w-full divide-y divide-gray-200">
                                 <thead className="bg-gray-50">
                                     <tr>
@@ -481,7 +481,7 @@ const ManageAuthors = () => {
                             </Card>
 
                             <Card>
-                                <div className="overflow-x-auto">
+                                <div className="overflow-x-auto table-responsive">
                                     <table className="min-w-full divide-y divide-gray-200">
                                         <thead className="bg-gray-50">
                                             <tr>

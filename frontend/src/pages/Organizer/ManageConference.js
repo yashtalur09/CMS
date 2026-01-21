@@ -207,10 +207,10 @@ const ManageConference = () => {
           </Button>
         </div>
 
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6 sm:mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Manage Conference</h1>
-            <p className="text-gray-600 mt-1">Edit conference details and manage tracks</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Manage Conference</h1>
+            <p className="text-sm sm:text-base text-gray-600 mt-1">Edit conference details and manage tracks</p>
           </div>
           <div className="flex gap-2 flex-wrap">
             <Button onClick={() => navigate(`/organizer/submissions/${conferenceId}`)}>
@@ -357,8 +357,8 @@ const ManageConference = () => {
 
         {/* Track Management */}
         <Card>
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-bold text-gray-900">Tracks</h2>
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900">Tracks</h2>
             <Button onClick={openAddTrack}>
               + Add Track
             </Button>

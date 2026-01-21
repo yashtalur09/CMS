@@ -173,19 +173,19 @@ export default function SubmissionDetails() {
                         <Card className="mb-6 card-hover">
                             <div className="flex justify-between items-start mb-4">
                                 <div className="flex-1">
-                                    <h1 className="text-2xl font-bold text-gray-900 mb-2">
+                                    <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">
                                         {submission.title}
                                     </h1>
                                     <div className="flex items-center gap-3">
                                         {getStatusBadge(submission.status)}
-                                        <span className="text-sm text-gray-600">
+                                        <span className="text-xs sm:text-sm text-gray-600">
                                             Submitted: {formatDate(submission.createdAt || submission.submittedAt)}
                                         </span>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <h3 className="text-sm font-medium text-gray-600">Conference</h3>
                                     <p className="text-gray-900 font-medium">{submission.conferenceId?.name || 'Unknown'}</p>

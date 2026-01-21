@@ -205,9 +205,9 @@ const ViewSubmissions = () => {
           </Button>
         </div>
 
-        <div className="flex justify-between items-start mb-8">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-6 sm:mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Manage Submissions</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Manage Submissions</h1>
             {conference && (
               <>
                 <p className="text-lg font-semibold text-gray-800 mt-2">{conference.name}</p>
@@ -405,7 +405,7 @@ const ViewSubmissions = () => {
 
               {/* Reviews Section */}
               <div className="mb-6">
-                <div className="flex justify-between items-center mb-3">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 mb-3">
                   <h3 className="font-semibold text-gray-900">Reviews</h3>
                   <div className="text-sm">
                     <span className="font-medium">Average Score:</span>{' '}

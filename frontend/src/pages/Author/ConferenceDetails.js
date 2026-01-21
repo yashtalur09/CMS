@@ -59,15 +59,15 @@ export default function ConferenceDetails() {
         {conference && (
           <>
             {/* Header */}
-            <div className="mb-8">
+            <div className="mb-6 sm:mb-8">
               <button
                 onClick={() => navigate(-1)}
                 className="text-blue-600 hover:text-blue-800 mb-4"
               >
                 ← Back
               </button>
-              <h1 className="text-3xl font-bold text-gray-900">{conference.name}</h1>
-              <p className="text-gray-600 mt-2">{conference.description}</p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">{conference.name}</h1>
+              <p className="text-sm sm:text-base text-gray-600 mt-2">{conference.description}</p>
             </div>
 
             {/* Conference Info */}

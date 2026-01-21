@@ -93,7 +93,7 @@ export default function MySubmissions() {
             >
               ← Back
             </button>
-            <h1 className="text-3xl font-bold text-gray-900">My Submissions</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">My Submissions</h1>
           </div>
           <Button
             onClick={() => navigate('/author/discover')}

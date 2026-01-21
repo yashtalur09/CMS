@@ -73,31 +73,31 @@ const ContactUs = () => {
         <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
             {/* Header */}
             <header className="bg-white shadow-sm border-b border-gray-200">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
-                    <div className="flex items-center justify-between">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-5">
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                         <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/')}>
                             <img
                                 src="/logo.png"
                                 alt="eConfMate Logo"
-                                className="h-12 w-12 object-contain rounded-xl shadow-lg transition-transform duration-200 hover:scale-110"
+                                className="h-10 w-10 sm:h-12 sm:w-12 object-contain rounded-xl shadow-lg transition-transform duration-200 hover:scale-110"
                             />
                             <div>
-                                <h1 className="text-2xl font-bold bg-gradient-to-r from-primary-600 via-primary-700 to-blue-600 bg-clip-text text-transparent">
+                                <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-primary-600 via-primary-700 to-blue-600 bg-clip-text text-transparent">
                                     eConfMate
                                 </h1>
-                                <p className="text-sm text-gray-500">Academic Excellence, Simplified</p>
+                                <p className="text-xs sm:text-sm text-gray-500 hidden sm:block">Academic Excellence, Simplified</p>
                             </div>
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
                             <button
                                 onClick={() => navigate('/')}
-                                className="px-6 py-2.5 rounded-xl border-2 border-gray-300 text-gray-700 font-medium hover:bg-gray-50 transition-all duration-300"
+                                className="flex-1 sm:flex-none px-4 sm:px-6 py-2.5 rounded-xl border-2 border-gray-300 text-gray-700 font-medium hover:bg-gray-50 transition-all duration-300 text-sm sm:text-base min-h-[44px]"
                             >
                                 Home
                             </button>
                             <button
                                 onClick={() => navigate('/login')}
-                                className="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 transition-all duration-300 shadow-lg shadow-blue-600/20"
+                                className="flex-1 sm:flex-none px-4 sm:px-6 py-2.5 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 transition-all duration-300 shadow-lg shadow-blue-600/20 text-sm sm:text-base min-h-[44px]"
                             >
                                 Sign In
                             </button>
@@ -107,19 +107,19 @@ const ContactUs = () => {
             </header>
 
             {/* Main Content */}
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
                 {/* Page Header */}
-                <div className="text-center mb-16">
-                    <h2 className="text-4xl font-bold text-gray-900 mb-4">Contact Us</h2>
-                    <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+                <div className="text-center mb-12 sm:mb-16">
+                    <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">Contact Us</h2>
+                    <p className="text-lg sm:text-xl text-gray-600 max-w-2xl mx-auto px-4">
                         Have questions or feedback? We'd love to hear from you. Send us a message and we'll respond as soon as possible.
                     </p>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 sm:gap-12">
                     {/* Contact Information */}
                     <div>
-                        <h3 className="text-2xl font-bold text-gray-900 mb-6">Get In Touch</h3>
+                        <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-6">Get In Touch</h3>
 
                         <div className="space-y-6 mb-8">
                             {contactInfo.map((info, idx) => (
@@ -165,7 +165,7 @@ const ContactUs = () => {
                     {/* Feedback Form */}
                     <div>
                         <Card className="shadow-lg">
-                            <h3 className="text-2xl font-bold text-gray-900 mb-6">Send Us Feedback</h3>
+                            <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-6">Send Us Feedback</h3>
 
                             <form onSubmit={handleSubmit} className="space-y-5">
                                 <div>

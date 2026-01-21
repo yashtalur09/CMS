@@ -156,12 +156,12 @@ const ConferenceSubmissions = () => {
           </Button>
         </div>
 
-        <div className="flex justify-between items-start mb-8">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-6 sm:mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Conference Submissions</h1>
-            <p className="text-gray-600 mt-1">Browse and bid on papers matching your expertise</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Conference Submissions</h1>
+            <p className="text-sm sm:text-base text-gray-600 mt-1">Browse and bid on papers matching your expertise</p>
           </div>
-          <div className="text-right">
+          <div className="text-left sm:text-right">
             <p className="text-2xl font-bold text-blue-600">{filteredSubmissions.length}</p>
             <p className="text-sm text-gray-600">
               {showAllPapers ? 'Total Papers' : 'Matching Papers'}
