@@ -8,7 +8,7 @@ import Loading from '../../components/Loading';
 import Textarea from '../../components/Textarea';
 import ScoreSlider from '../../components/ScoreSlider';
 import { getSubmissionForReview, createReview, getReviewerMyReview } from '../../utils/api';
-import { getViewableUrl, downloadPdfFile, extractFilename } from '../../utils/pdfHelper';
+import { downloadPdfFile, extractFilename, viewPdfInNewTab } from '../../utils/pdfHelper';
 
 const ReviewPaper = () => {
   const { submissionId, id } = useParams();
@@ -414,7 +414,7 @@ const ReviewPaper = () => {
       {/* PDF Preview Modal */}
       {showPdfModal && submission?.fileUrl && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-5xl w-full max-h-[90vh] overflow-hidden">
+          <div className="bg-white rounded-lg max-w-2xl w-full overflow-hidden">
             <div className="flex justify-between items-center px-6 py-4 border-b">
               <h3 className="text-lg font-semibold text-gray-900">
                 {submission.title}
@@ -426,20 +426,28 @@ const ReviewPaper = () => {
                 ×
               </button>
             </div>
-            <div style={{ height: '70vh' }}>
-              <iframe
-                src={getViewableUrl(submission.fileUrl)}
-                className="w-full h-full"
-                title="Paper Preview"
-              />
+            <div className="p-8 text-center">
+              <div className="text-6xl mb-4">📄</div>
+              <h4 className="text-xl font-semibold text-gray-900 mb-2">Paper Document</h4>
+              <p className="text-gray-600 mb-6">
+                Click the buttons below to view or download this paper.
+              </p>
+              <div className="flex justify-center gap-4">
+                <button
+                  onClick={() => viewPdfInNewTab(submission.fileUrl)}
+                  className="px-6 py-3 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors flex items-center gap-2"
+                >
+                  📄 Open in New Tab
+                </button>
+                <button
+                  onClick={() => downloadPdfFile(submission.fileUrl, extractFilename(submission.fileUrl, submission.title))}
+                  className="px-6 py-3 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors flex items-center gap-2"
+                >
+                  ⬇️ Download PDF
+                </button>
+              </div>
             </div>
-            <div className="px-6 py-4 border-t flex justify-end gap-3">
-              <button
-                onClick={() => downloadPdfFile(submission.fileUrl, extractFilename(submission.fileUrl, submission.title))}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
-              >
-                Download PDF
-              </button>
+            <div className="px-6 py-4 border-t flex justify-end">
               <Button variant="outline" onClick={() => setShowPdfModal(false)}>
                 Close
               </Button>

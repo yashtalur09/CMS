@@ -6,47 +6,15 @@
 const API_BASE_URL = process.env.REACT_APP_API_URL?.replace('/api', '') || 'https://cms-backend-fjdo.onrender.com';
 
 /**
- * Get a viewable URL for a PDF file
- * Uses Google Docs Viewer for Cloudinary raw resources that can't render inline
+ * Get the direct URL for accessing a file
  * @param {string} fileUrl - The original file URL
- * @returns {string} - A URL that can be used in an iframe for viewing
+ * @returns {string} - The properly formatted file URL
  */
-export const getViewableUrl = (fileUrl) => {
+export const getDirectUrl = (fileUrl) => {
     if (!fileUrl) return '';
 
-    // Get the full URL first
-    let fullUrl = fileUrl;
-
-    // If it's a relative path, prepend backend URL
-    if (fileUrl.startsWith('/')) {
-        fullUrl = `${API_BASE_URL}${fileUrl}`;
-    }
-
-    // For Cloudinary raw resources, use Google Docs Viewer
-    if (fullUrl.includes('cloudinary.com') && fullUrl.includes('/raw/')) {
-        // Google Docs Viewer can render any public PDF
-        return `https://docs.google.com/viewer?url=${encodeURIComponent(fullUrl)}&embedded=true`;
-    }
-
-    // For image-type PDFs or other URLs, return as-is
-    return fullUrl;
-};
-
-/**
- * Get the direct URL for a file (for downloads or linking)
- * @param {string} fileUrl - The original file URL
- * @param {boolean} forDownload - Whether this is for a download (adds fl_attachment flag)
- * @returns {string} - The processed file URL
- */
-export const getFileUrl = (fileUrl, forDownload = false) => {
-    if (!fileUrl) return '';
-
-    // If it's already a full URL
+    // If it's already a full URL, return as-is
     if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
-        // For Cloudinary URLs, add attachment flag for downloads
-        if (fileUrl.includes('cloudinary.com') && forDownload) {
-            return fileUrl.replace('/upload/', '/upload/fl_attachment/');
-        }
         return fileUrl;
     }
 
@@ -56,6 +24,18 @@ export const getFileUrl = (fileUrl, forDownload = false) => {
     }
 
     return fileUrl;
+};
+
+/**
+ * Get a viewable URL for a PDF file
+ * For Cloudinary raw resources, opens directly in new tab (browser will handle PDF rendering)
+ * @param {string} fileUrl - The original file URL
+ * @returns {string} - A URL that can be used for viewing
+ */
+export const getViewableUrl = (fileUrl) => {
+    // For raw Cloudinary resources, the direct URL should work in a new tab
+    // Browsers will render PDFs natively when opened directly
+    return getDirectUrl(fileUrl);
 };
 
 /**
@@ -72,15 +52,19 @@ export const extractFilename = (fileUrl, defaultName = 'paper') => {
         const urlPath = fileUrl.split('?')[0]; // Remove query params
         let filename = urlPath.split('/').pop();
 
-        // Remove any Cloudinary transformations from the filename
-        if (filename.includes('fl_attachment')) {
-            filename = filename.replace('fl_attachment', '').replace(/^\/+/, '');
+        // Clean up filename - remove cloudinary prefixes like "paper-1234567890"
+        // If the filename is a cloudinary-style name, use the default instead
+        if (filename.startsWith('paper-') && /paper-\d+-\d+/.test(filename)) {
+            filename = defaultName;
         }
 
         // Ensure it has .pdf extension
         if (!filename.toLowerCase().endsWith('.pdf')) {
             filename = `${filename}.pdf`;
         }
+
+        // Clean the filename for safety
+        filename = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
 
         return filename;
     } catch {
@@ -102,8 +86,8 @@ export const downloadPdfFile = async (fileUrl, filename = null) => {
     }
 
     try {
-        // Get the direct file URL (with attachment flag for Cloudinary)
-        const downloadUrl = getFileUrl(fileUrl, true);
+        // Get the direct file URL (no transformations for raw resources)
+        const downloadUrl = getDirectUrl(fileUrl);
 
         // Fetch the file as a blob
         const response = await fetch(downloadUrl);
@@ -136,8 +120,8 @@ export const downloadPdfFile = async (fileUrl, filename = null) => {
     } catch (error) {
         console.error('Error downloading PDF:', error);
 
-        // Fallback: open in new tab if blob download fails
-        const fallbackUrl = getFileUrl(fileUrl, true);
+        // Fallback: open in new tab
+        const fallbackUrl = getDirectUrl(fileUrl);
         window.open(fallbackUrl, '_blank');
     }
 };
@@ -152,11 +136,15 @@ export const viewPdfInNewTab = (fileUrl) => {
         return;
     }
 
-    const viewUrl = getViewableUrl(fileUrl);
+    const viewUrl = getDirectUrl(fileUrl);
     window.open(viewUrl, '_blank');
 };
 
+// Keep legacy function name for backward compatibility
+export const getFileUrl = getDirectUrl;
+
 const pdfHelper = {
+    getDirectUrl,
     getViewableUrl,
     getFileUrl,
     extractFilename,
