@@ -1,24 +1,29 @@
-const { Resend } = require('resend');
+const nodemailer = require('nodemailer');
 
-// Initialize Resend client
-const createResendClient = () => {
-  // For production, use Resend API key from .env
-  if (process.env.RESEND_API_KEY) {
-    return new Resend(process.env.RESEND_API_KEY);
+// Create Mailtrap SMTP transporter
+const createTransporter = () => {
+  // For production, use Mailtrap SMTP credentials from .env
+  if (process.env.MAILTRAP_HOST && process.env.MAILTRAP_USER) {
+    return nodemailer.createTransport({
+      host: process.env.MAILTRAP_HOST,
+      port: parseInt(process.env.MAILTRAP_PORT) || 587,
+      auth: {
+        user: process.env.MAILTRAP_USER,
+        pass: process.env.MAILTRAP_PASS
+      }
+    });
   }
 
-  // Development fallback - logs to console (maintains existing behavior)
+  // Development fallback - logs to console
   return {
-    emails: {
-      send: async (emailData) => {
-        console.log('📧 EMAIL (Development Mode):', {
-          to: emailData.to,
-          cc: emailData.cc || 'None',
-          subject: emailData.subject,
-          text: emailData.text?.substring(0, 200) + '...'
-        });
-        return { data: { id: 'dev-' + Date.now() }, error: null };
-      }
+    sendMail: async (mailOptions) => {
+      console.log('📧 EMAIL (Development Mode):', {
+        to: mailOptions.to,
+        cc: mailOptions.cc || 'None',
+        subject: mailOptions.subject,
+        text: mailOptions.text?.substring(0, 200) + '...'
+      });
+      return { messageId: 'dev-' + Date.now() };
     }
   };
 };
@@ -316,41 +321,36 @@ const templates = {
   })
 };
 
-// Send email function using Resend SDK
+// Send email function using Nodemailer with Mailtrap SMTP
 const sendEmail = async (to, template, cc = null) => {
   try {
-    const resend = createResendClient();
+    const transporter = createTransporter();
 
-    // Prepare email data in Resend format
-    const emailData = {
-      from: process.env.EMAIL_FROM || 'onboarding@resend.dev',
-      to: Array.isArray(to) ? to : [to],
+    // Prepare email data
+    const mailOptions = {
+      from: process.env.EMAIL_FROM || 'CMS System <noreply@cms-system.com>',
+      to: Array.isArray(to) ? to.join(', ') : to,
       subject: template.subject,
       html: template.html,
       text: template.text
     };
 
-    // Add CC if provided (for co-authors) - Resend accepts array format
+    // Add CC if provided (for co-authors)
     if (cc) {
-      emailData.cc = Array.isArray(cc) ? cc : [cc];
+      mailOptions.cc = Array.isArray(cc) ? cc.join(', ') : cc;
     }
 
-    // Send via Resend API
-    const { data, error } = await resend.emails.send(emailData);
-
-    if (error) {
-      throw new Error(error.message || 'Resend API error');
-    }
+    // Send via Nodemailer/Mailtrap
+    const info = await transporter.sendMail(mailOptions);
 
     console.log('✅ Email sent:', {
-      to: emailData.to,
-      cc: emailData.cc || 'None',
+      to: mailOptions.to,
+      cc: mailOptions.cc || 'None',
       subject: template.subject,
-      messageId: data.id
+      messageId: info.messageId
     });
 
-    // Return in format compatible with existing code (maintains behavior)
-    return { messageId: data.id, ...data };
+    return { messageId: info.messageId, ...info };
   } catch (error) {
     console.error('❌ Email error:', error);
     throw error;
