@@ -53,9 +53,15 @@ const OrcidCallback = () => {
       }
 
       // Send code to backend
+      // Only include role in request body if it's not null/undefined
+      const requestBody = { code };
+      if (role) {
+        requestBody.role = role;
+      }
+      
       const response = await axios.post(
         `${process.env.REACT_APP_API_URL || 'https://cms-backend-fjdo.onrender.com/api'}/auth/orcid/callback`,
-        { code, role }
+        requestBody
       );
 
       if (response.data.success) {
@@ -76,7 +82,20 @@ const OrcidCallback = () => {
 
     } catch (err) {
       console.error('ORCID callback error:', err);
-      setError(err.response?.data?.message || 'An error occurred during authentication');
+      console.error('Error response:', err.response?.data);
+      console.error('Error status:', err.response?.status);
+      
+      // More detailed error message
+      let errorMessage = 'An error occurred during authentication';
+      if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err.response?.data?.errors && err.response.data.errors.length > 0) {
+        errorMessage = err.response.data.errors.map(e => e.msg).join(', ');
+      } else if (err.response?.data?.error) {
+        errorMessage = err.response.data.error;
+      }
+      
+      setError(errorMessage);
     }
     // Note: Don't reset isProcessingRef to allow only one execution
     // eslint-disable-next-line react-hooks/exhaustive-deps
