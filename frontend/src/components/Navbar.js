@@ -114,15 +114,17 @@ const Navbar = () => {
                 </button>
               )}
 
-              <Link to="/" className="flex items-center space-x-2 sm:space-x-3 group">
+              <Link to="/" className="flex items-center space-x-3 sm:space-x-4 group">
                 {/* Logo */}
-                <img
-                  src="/logo.png"
-                  alt="eConfMate Logo"
-                  className="h-8 w-8 sm:h-10 sm:w-10 object-contain transition-transform duration-200 group-hover:scale-110"
-                />
+                <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden transition-transform duration-200 group-hover:scale-110">
+                  <img
+                    src="/logo_1.png"
+                    alt="eConfMate Logo"
+                    className="h-full w-full object-cover"
+                  />
+                </div>
                 {/* Brand Text */}
-                <span className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-primary-600 via-primary-700 to-blue-600 bg-clip-text text-transparent hover:from-primary-700 hover:via-primary-800 hover:to-blue-700 transition-all duration-200">
+                <span className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 bg-clip-text text-transparent hover:from-primary-700 hover:via-primary-800 hover:to-blue-700 transition-all duration-200">
                   eConfMate
                 </span>
               </Link>
