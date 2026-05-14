@@ -1744,14 +1744,15 @@ const featureFlags = require('../config/featureFlags');
 
 /**
  * Wrapper to maintain backward-compat call signature for manual assignment.
- * The new engine expects { bid, reviewer, submission, conference, currentLoad, maxLoad }.
+ * The new engine expects { bid, reviewer, submission, conference, trackName, currentLoad, maxLoad }.
  */
-function computeMatchScore(bid, reviewer, submission, conference, currentLoad, maxLoad) {
+function computeMatchScore(bid, reviewer, submission, conference, currentLoad, maxLoad, trackName) {
   const result = _computeMatchScore({
     bid,
     reviewer,
     submission,
     conference,
+    trackName: trackName || '',
     currentLoad: currentLoad || 0,
     maxLoad: maxLoad || (reviewer.maxLoad || 10),
   });
@@ -1778,8 +1779,12 @@ router.post('/conferences/:id/auto-assign', [
 ], async (req, res) => {
   const startTime = Date.now();
   try {
+    console.log(`\n[DEBUG-AUTO-ASSIGN] ════════════════════════════════════════════`);
+    console.log(`[DEBUG-AUTO-ASSIGN] Auto-assign triggered at ${new Date().toISOString()}`);
+
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.log(`[DEBUG-AUTO-ASSIGN] ❌ Validation errors:`, errors.array());
       return res.status(400).json({ success: false, errors: errors.array() });
     }
 
@@ -1792,6 +1797,9 @@ router.post('/conferences/:id/auto-assign', [
       dryRun = false
     } = req.body;
 
+    console.log(`[DEBUG-AUTO-ASSIGN] Config: conferenceId=${conferenceId}, reviewersPerPaper=${reviewersPerPaper}, maxPapersPerReviewer=${maxPapersPerReviewer}, clearExisting=${clearExisting}, dryRun=${dryRun}`);
+    console.log(`[DEBUG-AUTO-ASSIGN] Feature flags:`, JSON.stringify(featureFlags));
+
     // Validate dry-run feature flag
     if (dryRun && !featureFlags.ENABLE_DRY_RUN) {
       return res.status(400).json({ success: false, message: 'Dry-run mode is not enabled' });
@@ -1803,21 +1811,37 @@ router.post('/conferences/:id/auto-assign', [
       return res.status(404).json({ success: false, message: 'Conference not found' });
     }
 
-    const tracks = await Track.find({ conferenceId }).select('_id').lean();
+    const tracks = await Track.find({ conferenceId }).select('_id name').lean();
     const trackIds = tracks.map(t => t._id);
+
+    // Build track lookup: trackId → track name
+    const trackLookup = new Map();
+    for (const t of tracks) {
+      trackLookup.set(t._id.toString(), t.name || '');
+    }
+    console.log(`[DEBUG-AUTO-ASSIGN] Tracks loaded: ${tracks.map(t => `"${t.name}" (${t._id})`).join(', ')}`);
 
     // Parallel data loading
     const [submissions, allBids, allReviewers] = await Promise.all([
       Submission.find({ trackId: { $in: trackIds } })
         .populate('authorId', 'name email affiliation')
+        .populate('trackId', 'name')
         .lean(),
-      // Load APPROVED + PENDING bids: approved for assignment, pending for prioritization
+      // Load ALL bids (APPROVED + PENDING) — all placed bids count for scoring
       Bid.find({ trackId: { $in: trackIds }, status: { $in: ['APPROVED', 'PENDING'] } }).lean(),
       User.find({ role: 'reviewer' }).lean(),
     ]);
 
-    // Separate: approved bids are used for actual assignment, all bids for categorization
+    console.log(`[DEBUG-AUTO-ASSIGN] Data loaded: ${submissions.length} submissions, ${allBids.length} bids (total), ${allReviewers.length} reviewers`);
+
+    // Separate bids by status for different purposes
     const approvedBids = allBids.filter(b => b.status === 'APPROVED');
+    const pendingBids = allBids.filter(b => b.status === 'PENDING');
+    console.log(`[DEBUG-AUTO-ASSIGN] Approved bids: ${approvedBids.length}, Pending bids: ${pendingBids.length}`);
+
+    // Build set of submission IDs that have APPROVED bids — these are EXCLUDED from auto-assign
+    const approvedBidSubmissionIds = new Set(approvedBids.map(b => b.submissionId.toString()));
+    console.log(`[DEBUG-AUTO-ASSIGN] Papers with approved bids (EXCLUDED from auto-assign): ${approvedBidSubmissionIds.size}`);
 
     if (submissions.length === 0) {
       return res.json({
@@ -1870,22 +1894,32 @@ router.post('/conferences/:id/auto-assign', [
     const existingAssignments = await Assignment.find({ conferenceId, status: 'ACTIVE' }).lean();
 
     // ─── STAGE 1: Index Building ──────────────────────────────────────
-    // bidMap uses approved bids only (for scoring + assignment)
-    const bidMap = buildBidMap(approvedBids);
-    const reviewerBidLookup = buildReviewerBidLookup(approvedBids);
+    // bidMap uses ALL bids (approved + pending) for scoring — any placed bid counts
+    const bidMap = buildBidMap(allBids);
+    const reviewerBidLookup = buildReviewerBidLookup(allBids);
 
-    // allBidMap uses ALL bids (approved + pending) for paper prioritization
-    const allBidMap = buildBidMap(allBids);
+    // allBidMap also uses ALL bids for paper categorization
+    const allBidMap = bidMap;
 
     const capacityCache = buildCapacityCache(reviewers, existingAssignments);
     const conflictCache = buildConflictCache(reviewers, submissions);
     const existingSet = buildExistingAssignmentSet(existingAssignments);
     const paperCounts = buildPaperAssignmentCounts(existingAssignments);
 
+    console.log(`[DEBUG-AUTO-ASSIGN] Stage 1 indexes built: bidMap=${bidMap.size} entries, conflictCache=${conflictCache.size} conflicts, existingSet=${existingSet.size} existing, capacityCache=${capacityCache.size} reviewers`);
+
+    // Log capacity details for each reviewer
+    for (const [revId, cap] of capacityCache) {
+      const rev = reviewers.find(r => r._id.toString() === revId);
+      console.log(`[DEBUG-AUTO-ASSIGN]   Capacity: ${rev?.name || revId} → used=${cap.used}/${cap.max}`);
+    }
+
     // Build domain index for no-bid matching
     const domainIndex = featureFlags.ENABLE_DOMAIN_MATCHING
       ? buildDomainIndex(reviewers)
       : new Map();
+
+    console.log(`[DEBUG-AUTO-ASSIGN] Domain index: ${domainIndex.size} domains indexed`);
 
     // Reviewer lookup by ID (eligible reviewers only)
     const reviewerById = new Map();
@@ -1894,13 +1928,23 @@ router.post('/conferences/:id/auto-assign', [
     }
 
     // ─── STAGE 1: Submission Categorization ───────────────────────────
-    // Papers with ANY bid (approved or pending) are processed FIRST.
-    // This ensures reviewer capacity is reserved for bid-covered papers.
+    // Papers with APPROVED bids are EXCLUDED (already handled via bid approval).
+    // Papers with PENDING bids are processed FIRST (bid-covered).
+    // Papers with no bids go to general assignment.
     const bidCoveredPapers = [];
     const noBidPapers = [];
+    let excludedApprovedCount = 0;
 
     for (const sub of submissions) {
       const subId = sub._id.toString();
+
+      // Exclude papers that have APPROVED bids (they are already assigned via bid approval)
+      if (approvedBidSubmissionIds.has(subId)) {
+        excludedApprovedCount++;
+        console.log(`[DEBUG-AUTO-ASSIGN] ⏭️ Excluding paper "${sub.title}" — has approved bid(s)`);
+        continue;
+      }
+
       // Skip if already fully assigned
       if ((paperCounts.get(subId) || 0) >= reviewersPerPaper) continue;
 
@@ -1913,7 +1957,32 @@ router.post('/conferences/:id/auto-assign', [
       }
     }
 
-    console.log(`[Auto-Assign] Categorized: ${bidCoveredPapers.length} bid-covered, ${noBidPapers.length} no-bid (from ${submissions.length} total)`);
+    console.log(`[Auto-Assign] Categorized: ${bidCoveredPapers.length} bid-covered, ${noBidPapers.length} no-bid, ${excludedApprovedCount} excluded (approved bids) (from ${submissions.length} total)`);
+
+    // ─── Helper: get track name for a submission ──────────────────────
+    function getTrackName(sub) {
+      // After .populate('trackId', 'name'), sub.trackId is { _id, name }
+      if (sub.trackId && typeof sub.trackId === 'object' && sub.trackId.name) {
+        return sub.trackId.name;
+      }
+      // Fallback: use trackLookup map
+      const trackIdStr = (sub.trackId?._id || sub.trackId || '').toString();
+      return trackLookup.get(trackIdStr) || '';
+    }
+
+    // ─── Helper: get raw trackId (ObjectId) for a submission ──────────
+    function getTrackId(sub) {
+      if (sub.trackId && typeof sub.trackId === 'object' && sub.trackId._id) {
+        return sub.trackId._id;
+      }
+      return sub.trackId;
+    }
+
+    // Log resolved track names for all submissions
+    console.log(`[DEBUG-AUTO-ASSIGN] Submission track mapping:`);
+    for (const sub of submissions) {
+      console.log(`[DEBUG-AUTO-ASSIGN]   "${sub.title?.substring(0, 60)}..." → Track: "${getTrackName(sub)}"`);
+    }
 
     // ─── Helper: check if a reviewer can be assigned to a submission ──
     function isEligible(revId, subId) {
@@ -1942,7 +2011,7 @@ router.post('/conferences/:id/auto-assign', [
       newAssignments.push({
         reviewerId: revId,
         submissionId: sub._id,
-        trackId: sub.trackId,
+        trackId: getTrackId(sub),
         conferenceId: conference._id,
         bidId: bidObj ? bidObj._id : null,
         source,
@@ -1970,177 +2039,134 @@ router.post('/conferences/:id/auto-assign', [
       else noBidCount++;
     }
 
-    // ─── STAGE 2A: Assign ALL Bidders First (capacity-preserving) ──────
-    // CRITICAL: Process every bidder across ALL papers BEFORE filling any
-    // remaining slots from the general pool. This prevents general-pool
-    // assignments from exhausting reviewer capacity and blocking bidders
-    // on later papers.
+    // ─── REVIEWER-CENTRIC BALANCED ASSIGNMENT ────────────────────────────
+    // Instead of iterating papers to find reviewers, we iterate reviewers
+    // to find their best-matching papers. This ensures each reviewer is
+    // matched to papers where their expertise is most relevant.
     //
-    // Example: 4 reviewers, 52 papers. Without this two-pass approach,
-    // Case B fallback on Paper #1 could consume Reviewer B's capacity,
-    // preventing Reviewer B from being assigned to Paper #5 which they
-    // explicitly bid on.
+    // Each round: for each reviewer with remaining capacity, find their
+    // highest-scoring eligible paper and assign them.
+    // Repeat rounds until all papers reach reviewersPerPaper or capacity
+    // is fully exhausted.
 
-    const bidCoveredPapersNeedingFill = []; // Track papers that need Pass B
+    const allPapersToAssign = [...bidCoveredPapers, ...noBidPapers];
 
-    for (const sub of bidCoveredPapers) {
-      const subId = sub._id.toString();
-      const needed = reviewersPerPaper - (paperCounts.get(subId) || 0);
-      if (needed <= 0) continue;
+    // Build a submission lookup for quick access
+    const submissionById = new Map();
+    for (const sub of allPapersToAssign) {
+      submissionById.set(sub._id.toString(), sub);
+    }
 
-      const subBids = bidMap.get(subId) || [];
+    console.log(`\n[DEBUG-AUTO-ASSIGN] ═══ REVIEWER-CENTRIC ASSIGNMENT ═══`);
+    console.log(`[DEBUG-AUTO-ASSIGN] Reviewers: ${reviewers.length}, Papers: ${allPapersToAssign.length}`);
+    console.log(`[DEBUG-AUTO-ASSIGN] Target: ${reviewersPerPaper} reviewers per paper, max ${maxPapersPerReviewer} papers per reviewer\n`);
 
-      // Score all eligible bidding reviewers
-      const bidCandidates = [];
-      for (const { reviewerId: revId, bid } of subBids) {
-        if (!isEligible(revId, subId)) continue;
-        const reviewer = reviewerById.get(revId);
-        if (!reviewer) continue;
+    // Track how many papers still need reviewers
+    function papersStillNeedingReviewers() {
+      return allPapersToAssign.filter(sub => {
+        const count = paperCounts.get(sub._id.toString()) || 0;
+        return count < reviewersPerPaper;
+      }).length;
+    }
 
+    let round = 0;
+    const maxRounds = maxPapersPerReviewer; // Safety limit
+
+    while (papersStillNeedingReviewers() > 0 && round < maxRounds) {
+      round++;
+      let assignedThisRound = 0;
+      let reviewersAtCapacity = 0;
+      let reviewersNoPaperAvailable = 0;
+
+      console.log(`[DEBUG-AUTO-ASSIGN] ─── Round ${round} ───────────────────────────────────`);
+
+      for (const reviewer of reviewers) {
+        const revId = reviewer._id.toString();
         const cap = capacityCache.get(revId) || { used: 0, max: 10 };
-        const matchResult = computeMatchScore(bid, reviewer, sub, conference, cap.used, cap.max);
 
-        // Apply additive bid bonus (PRD Section 9.4)
-        const bidBonusResult = featureFlags.ENABLE_BID_BONUS
-          ? calculateBidBonus(bid)
-          : { bonus: 0, reason: '' };
-        const finalScore = computeFinalScore(matchResult.score, bidBonusResult.bonus);
-        const fullReason = [matchResult.reason, bidBonusResult.reason].filter(Boolean).join('; ');
+        // Skip reviewer if at capacity
+        if (cap.used >= Math.min(cap.max, maxPapersPerReviewer)) {
+          reviewersAtCapacity++;
+          continue;
+        }
 
-        bidCandidates.push({
-          reviewerId: revId,
-          score: finalScore,
-          baseScore: matchResult.score,
-          bidBonus: bidBonusResult.bonus,
-          reason: fullReason,
-          bidTimestamp: bid.bidTimestamp || bid.createdAt,
-          bid,
-          reviewer,
+        // Score ALL papers that still need reviewers for this reviewer
+        const paperCandidates = [];
+
+        for (const sub of allPapersToAssign) {
+          const subId = sub._id.toString();
+
+          // Skip if this paper already has enough reviewers
+          if ((paperCounts.get(subId) || 0) >= reviewersPerPaper) continue;
+
+          // Check eligibility (already assigned, conflict, etc.)
+          if (!isEligible(revId, subId)) continue;
+
+          const trackName = getTrackName(sub);
+
+          // Check if this reviewer has a bid on this paper
+          const bidLookupKey = `${revId}_${subId}`;
+          const bid = reviewerBidLookup.get(bidLookupKey) || null;
+
+          const matchResult = computeMatchScore(bid, reviewer, sub, conference, cap.used, cap.max, trackName);
+
+          // Apply additive bid bonus if reviewer has a bid
+          const bidBonusResult = (bid && featureFlags.ENABLE_BID_BONUS)
+            ? calculateBidBonus(bid)
+            : { bonus: 0, reason: '' };
+          const finalScore = computeFinalScore(matchResult.score, bidBonusResult.bonus);
+          const fullReason = [matchResult.reason, bidBonusResult.reason].filter(Boolean).join('; ');
+
+          paperCandidates.push({
+            subId,
+            sub,
+            score: finalScore,
+            baseScore: matchResult.score,
+            bidBonus: bidBonusResult.bonus,
+            reason: fullReason,
+            bid,
+            isBidder: !!bid,
+            trackName,
+          });
+        }
+
+        if (paperCandidates.length === 0) {
+          reviewersNoPaperAvailable++;
+          continue;
+        }
+
+        // Sort: highest score first → bidders win ties → paper with fewest reviewers
+        paperCandidates.sort((a, b) => {
+          if (b.score !== a.score) return b.score - a.score;
+          // Bidders win ties
+          if (a.isBidder !== b.isBidder) return a.isBidder ? -1 : 1;
+          // Paper with fewer current reviewers gets priority (neediest first)
+          const aCount = paperCounts.get(a.subId) || 0;
+          const bCount = paperCounts.get(b.subId) || 0;
+          if (aCount !== bCount) return aCount - bCount;
+          return a.subId.localeCompare(b.subId);
         });
+
+        // Assign this reviewer to their TOP 1 best-matching paper
+        const best = paperCandidates[0];
+        const source = best.isBidder ? 'BID_PRIORITY' : 'AUTO_BALANCED';
+        console.log(`[DEBUG-AUTO-ASSIGN]   Round ${round} | ${reviewer.name} → "${best.sub.title?.substring(0, 50)}..." (score=${best.score}, base=${best.baseScore}, bonus=${best.bidBonus}, track="${best.trackName}", source=${source})`);
+        recordAssignment(revId, best.sub, source, { score: best.baseScore, reason: best.reason }, best.bid);
+        assignedThisRound++;
       }
 
-      // Sort bidders by finalScore (includes bid bonus)
-      sortBidCoveredCandidates(bidCandidates);
+      console.log(`[DEBUG-AUTO-ASSIGN]   Round ${round} summary: ${assignedThisRound} assigned, ${reviewersAtCapacity} at capacity, ${reviewersNoPaperAvailable} no paper available`);
+      console.log(`[DEBUG-AUTO-ASSIGN]   Papers still needing reviewers: ${papersStillNeedingReviewers()}`);
 
-      // Assign up to `needed` bidders (but ONLY bidders — no fallback yet)
-      const toAssign = bidCandidates.slice(0, needed);
-      for (const c of toAssign) {
-        recordAssignment(c.reviewerId, sub, 'BID_PRIORITY', { score: c.baseScore, reason: c.reason }, c.bid);
-      }
-
-      // If still unfilled after assigning all available bidders, queue for Pass B
-      const stillNeeded = reviewersPerPaper - (paperCounts.get(subId) || 0);
-      if (stillNeeded > 0) {
-        bidCoveredPapersNeedingFill.push(sub);
-      }
-    }
-
-    console.log(`[Auto-Assign] Stage 2A complete: ${bidCoveredCount} bid assignments, ${bidCoveredPapersNeedingFill.length} papers need fill`);
-
-    // ─── STAGE 2B: Fill Remaining Slots on Bid-Covered Papers ─────────
-    // Now that ALL bidders have been assigned, fill unfilled slots from
-    // the general conference-eligible reviewer pool.
-    for (const sub of bidCoveredPapersNeedingFill) {
-      const subId = sub._id.toString();
-      const remainingNeeded = reviewersPerPaper - (paperCounts.get(subId) || 0);
-      if (remainingNeeded <= 0) continue;
-
-      const generalCandidates = [];
-      // Try domain-matched reviewers first
-      if (featureFlags.ENABLE_DOMAIN_MATCHING) {
-        const domainReviewerIds = findDomainMatchedReviewers(sub, conference, domainIndex);
-        for (const revId of domainReviewerIds) {
-          if (!isEligible(revId, subId)) continue;
-          const reviewer = reviewerById.get(revId);
-          if (!reviewer) continue;
-          const cap = capacityCache.get(revId) || { used: 0, max: 10 };
-          const matchResult = computeMatchScore(null, reviewer, sub, conference, cap.used, cap.max);
-          generalCandidates.push({
-            reviewerId: revId, score: matchResult.score, reason: matchResult.reason,
-            lastAssignedAt: reviewer.lastAssignedAt, reviewer,
-          });
-        }
-      }
-      // Expand to all eligible reviewers if still insufficient
-      if (generalCandidates.length < remainingNeeded) {
-        for (const reviewer of reviewers) {
-          const revId = reviewer._id.toString();
-          if (generalCandidates.some(c => c.reviewerId === revId)) continue;
-          if (!isEligible(revId, subId)) continue;
-          const cap = capacityCache.get(revId) || { used: 0, max: 10 };
-          const matchResult = computeMatchScore(null, reviewer, sub, conference, cap.used, cap.max);
-          generalCandidates.push({
-            reviewerId: revId, score: matchResult.score, reason: matchResult.reason + ' (fallback)',
-            lastAssignedAt: reviewer.lastAssignedAt, reviewer, isFallback: true,
-          });
-        }
-      }
-      sortNoBidCandidates(generalCandidates);
-      const toFill = generalCandidates.slice(0, remainingNeeded);
-      for (const c of toFill) {
-        const source = c.isFallback ? 'FALLBACK' : 'AUTO_GENERAL';
-        recordAssignment(c.reviewerId, sub, source, { score: c.score, reason: c.reason }, null);
+      // Early exit if no assignments were made (all capacity exhausted)
+      if (assignedThisRound === 0) {
+        console.log(`[DEBUG-AUTO-ASSIGN]   ⚠️ No assignments in round ${round} — stopping.`);
+        break;
       }
     }
 
-    // ─── STAGE 3: General Assignment (No-Bid Papers) ──────────────────
-    if (featureFlags.ENABLE_DOMAIN_MATCHING) {
-      for (const sub of noBidPapers) {
-        const subId = sub._id.toString();
-        const needed = reviewersPerPaper - (paperCounts.get(subId) || 0);
-        if (needed <= 0) continue;
-
-        // Find domain-matched reviewers
-        const domainReviewerIds = findDomainMatchedReviewers(sub, conference, domainIndex);
-        const candidates = [];
-
-        for (const revId of domainReviewerIds) {
-          if (!isEligible(revId, subId)) continue;
-          const reviewer = reviewerById.get(revId);
-          if (!reviewer) continue;
-
-          const cap = capacityCache.get(revId) || { used: 0, max: 10 };
-          const matchResult = computeMatchScore(null, reviewer, sub, conference, cap.used, cap.max);
-
-          candidates.push({
-            reviewerId: revId,
-            score: matchResult.score,
-            reason: matchResult.reason,
-            lastAssignedAt: reviewer.lastAssignedAt,
-            reviewer,
-          });
-        }
-
-        // Fallback: if insufficient domain reviewers, expand to all reviewers
-        if (candidates.length < needed) {
-          for (const reviewer of reviewers) {
-            const revId = reviewer._id.toString();
-            if (candidates.some(c => c.reviewerId === revId)) continue;
-            if (!isEligible(revId, subId)) continue;
-
-            const cap = capacityCache.get(revId) || { used: 0, max: 10 };
-            const matchResult = computeMatchScore(null, reviewer, sub, conference, cap.used, cap.max);
-
-            candidates.push({
-              reviewerId: revId,
-              score: matchResult.score,
-              reason: matchResult.reason + ' (fallback)',
-              lastAssignedAt: reviewer.lastAssignedAt,
-              reviewer,
-              isFallback: true,
-            });
-          }
-        }
-
-        sortNoBidCandidates(candidates);
-
-        const toAssign = candidates.slice(0, needed);
-        for (const c of toAssign) {
-          const source = c.isFallback ? 'FALLBACK' : 'DOMAIN_TOP_K';
-          recordAssignment(c.reviewerId, sub, source, { score: c.score, reason: c.reason }, null);
-        }
-      }
-    }
+    console.log(`\n[DEBUG-AUTO-ASSIGN] ═══ REVIEWER-CENTRIC ASSIGNMENT COMPLETE ═══`);
+    console.log(`[DEBUG-AUTO-ASSIGN] Completed in ${round} rounds`);
 
     // ─── STAGE 4: Validation & Finalization ───────────────────────────
     const duration = Date.now() - startTime;
@@ -2222,7 +2248,8 @@ router.post('/conferences/:id/auto-assign', [
     });
 
   } catch (error) {
-    console.error('Auto-assign error:', error);
+    console.error('[DEBUG-AUTO-ASSIGN] ❌ FATAL ERROR:', error.message);
+    console.error('[DEBUG-AUTO-ASSIGN] Stack:', error.stack);
     res.status(500).json({ success: false, message: 'Error running auto-assignment' });
   }
 });
@@ -2397,11 +2424,15 @@ router.post('/assignments', [
       });
     }
 
-    // Find any approved bid
-    const bid = await Bid.findOne({ reviewerId, submissionId, status: 'APPROVED' }).lean();
+    // Find any placed bid (PENDING or APPROVED)
+    const bid = await Bid.findOne({ reviewerId, submissionId, status: { $in: ['APPROVED', 'PENDING'] } }).lean();
+
+    // Get track name for expertise matching
+    const manualTrack = await Track.findById(submission.trackId).select('name').lean();
+    const manualTrackName = manualTrack?.name || '';
 
     // Compute score with capacity awareness
-    const matchResult = computeMatchScore(bid, reviewer, submission, conference, currentLoad, maxLoad);
+    const matchResult = computeMatchScore(bid, reviewer, submission, conference, currentLoad, maxLoad, manualTrackName);
 
     const assignment = new Assignment({
       reviewerId,

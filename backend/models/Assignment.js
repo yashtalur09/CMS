@@ -28,7 +28,7 @@ const assignmentSchema = new mongoose.Schema({
     },
     source: {
         type: String,
-        enum: ['MANUAL', 'BID', 'BID_PRIORITY', 'AUTO_GENERAL', 'DOMAIN_MATCH', 'DOMAIN_TOP_K', 'FALLBACK', 'AUTO'],
+        enum: ['MANUAL', 'BID', 'BID_PRIORITY', 'AUTO_GENERAL', 'AUTO_BALANCED', 'DOMAIN_MATCH', 'DOMAIN_TOP_K', 'FALLBACK', 'AUTO'],
         default: 'MANUAL'
     },
     matchScore: {

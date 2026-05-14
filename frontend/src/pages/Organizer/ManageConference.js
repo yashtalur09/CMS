@@ -7,6 +7,7 @@ import Input from '../../components/Input';
 import Textarea from '../../components/Textarea';
 import Loading from '../../components/Loading';
 import Modal from '../../components/Modal';
+import DomainMultiSelect from '../../components/DomainMultiSelect';
 import {
   getConferenceDetailsOrganizer,
   updateConference,
@@ -416,14 +417,15 @@ const ManageConference = () => {
         title={editingTrack ? 'Edit Track' : 'Add Track'}
       >
         <div className="space-y-4">
-          <div>
+        <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Track Name <span className="text-red-500">*</span>
             </label>
-            <Input
-              value={trackForm.name}
-              onChange={(e) => setTrackForm(prev => ({ ...prev, name: e.target.value }))}
-              placeholder="e.g., Machine Learning, Web Technologies"
+            <DomainMultiSelect
+              value={trackForm.name ? [trackForm.name] : []}
+              onChange={(domains) => setTrackForm(prev => ({ ...prev, name: domains[0] || '' }))}
+              placeholder="Select a track domain..."
+              singleSelect={true}
             />
           </div>
           <div>

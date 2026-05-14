@@ -31,72 +31,104 @@ const PUBLIC_EMAIL_DOMAINS = [
  * Compute the match score between a reviewer and a submission.
  * 
  * @param {Object} params
- * @param {Object|null} params.bid - Approved bid (or null if no bid)
+ * @param {Object|null} params.bid - Placed bid (any status: PENDING, APPROVED, etc.) or null
  * @param {Object} params.reviewer - Reviewer user document
  * @param {Object} params.submission - Submission document (with keywords)
  * @param {Object} params.conference - Conference document (with domains)
+ * @param {string} params.trackName - Name of the submission's track (for expertise matching)
  * @param {number} params.currentLoad - Current number of active assignments for reviewer
  * @param {number} params.maxLoad - Maximum assignments for reviewer
  * @returns {{ score: number, reason: string }}
  */
-function computeMatchScore({ bid, reviewer, submission, conference, currentLoad, maxLoad }) {
+function computeMatchScore({ bid, reviewer, submission, conference, trackName, currentLoad, maxLoad }) {
+  console.log(`\n[DEBUG-SCORE] ═══════════════════════════════════════════════`);
+  console.log(`[DEBUG-SCORE] Computing match score:`);
+  console.log(`[DEBUG-SCORE]   Reviewer: ${reviewer?.name || 'N/A'} (${reviewer?._id})`);
+  console.log(`[DEBUG-SCORE]   Submission: "${submission?.title || 'N/A'}" (${submission?._id})`);
+  console.log(`[DEBUG-SCORE]   Track: "${trackName || 'N/A'}"`);
+  console.log(`[DEBUG-SCORE]   Bid: ${bid ? `status=${bid.status}, confidence=${bid.confidence}, bidStrength=${bid.bidStrength}` : 'NO BID'}`);
+  console.log(`[DEBUG-SCORE]   Load: ${currentLoad}/${maxLoad}`);
+
   // Early rejection: overloaded reviewer
   if (currentLoad >= maxLoad) {
+    console.log(`[DEBUG-SCORE]   ❌ REJECTED: Reviewer at max capacity (${currentLoad} >= ${maxLoad})`);
     return { score: 0, reason: 'Reviewer at maximum capacity' };
   }
 
   let score = 0;
   const reasons = [];
 
-  // 1. Bid confidence (max 30)
-  if (bid && bid.status === 'APPROVED' && bid.confidence != null) {
+  // 1. Bid confidence (max 30) — counts for ANY placed bid (PENDING or APPROVED)
+  if (bid && bid.confidence != null) {
     const bidScore = (bid.confidence / 10) * SCORE_WEIGHTS.BID_CONFIDENCE;
     score += bidScore;
-    reasons.push(`Bid confidence: ${bid.confidence}/10 → ${Math.round(bidScore)}pts`);
-  } else if (bid && bid.status === 'APPROVED') {
-    // Approved bid but no confidence value → give baseline
+    reasons.push(`Bid confidence (${bid.status}): ${bid.confidence}/10 → ${Math.round(bidScore)}pts`);
+    console.log(`[DEBUG-SCORE]   📊 Bid confidence (${bid.status}): ${bid.confidence}/10 × ${SCORE_WEIGHTS.BID_CONFIDENCE} = ${Math.round(bidScore)}pts`);
+  } else if (bid) {
+    // Bid placed but no confidence value → give baseline
     score += SCORE_WEIGHTS.BID_CONFIDENCE * 0.5;
-    reasons.push('Approved bid (no confidence) → 15pts');
+    reasons.push(`Bid placed (${bid.status}, no confidence) → 15pts`);
+    console.log(`[DEBUG-SCORE]   📊 Bid placed (${bid.status}) but no confidence → baseline 15pts`);
+  } else {
+    console.log(`[DEBUG-SCORE]   📊 No bid placed → 0pts for bid component`);
   }
 
-  // 2. Expertise match (max 60) — keyword + domain overlap
-  const expertiseResult = computeExpertiseMatch(reviewer, submission, conference);
+  // 2. Expertise match (max 60) — reviewer expertise vs track name
+  const expertiseResult = computeExpertiseMatch(reviewer, submission, conference, trackName);
   score += expertiseResult.score;
   if (expertiseResult.reason) {
     reasons.push(expertiseResult.reason);
   }
+  console.log(`[DEBUG-SCORE]   🎯 Expertise match: ${Math.round(expertiseResult.score)}pts — ${expertiseResult.reason}`);
 
   // 3. Capacity bonus (max 10) — more available = higher bonus
   if (maxLoad > 0) {
     const capacityBonus = ((maxLoad - currentLoad) / maxLoad) * SCORE_WEIGHTS.CAPACITY_BONUS;
     score += capacityBonus;
     reasons.push(`Capacity: ${currentLoad}/${maxLoad} → ${Math.round(capacityBonus)}pts`);
+    console.log(`[DEBUG-SCORE]   📦 Capacity bonus: (${maxLoad}-${currentLoad})/${maxLoad} × ${SCORE_WEIGHTS.CAPACITY_BONUS} = ${Math.round(capacityBonus)}pts`);
+  } else {
+    console.log(`[DEBUG-SCORE]   📦 Capacity bonus: maxLoad=0 → skipped`);
   }
 
+  const finalScore = Math.round(Math.min(score, 100));
+  console.log(`[DEBUG-SCORE]   ✅ TOTAL BASE SCORE: ${score.toFixed(2)} → capped/rounded = ${finalScore}`);
+  console.log(`[DEBUG-SCORE] ═══════════════════════════════════════════════\n`);
+
   return {
-    score: Math.round(Math.min(score, 100)),
+    score: finalScore,
     reason: reasons.join('; '),
   };
 }
 
 /**
- * Compute expertise match between reviewer domains and paper keywords + conference domains.
+ * Compute expertise match between reviewer expertise domains and the submission's track name.
  * 
  * @param {Object} reviewer
  * @param {Object} submission
  * @param {Object} conference
+ * @param {string} trackName - The track name for this submission
  * @returns {{ score: number, reason: string }}
  */
-function computeExpertiseMatch(reviewer, submission, conference) {
+function computeExpertiseMatch(reviewer, submission, conference, trackName) {
   const reviewerDomains = (reviewer.expertiseDomains || []).map(d => d.toLowerCase().trim());
 
-  // Build target domains from paper keywords + conference domains
-  const targetDomains = [
-    ...(submission.keywords || []),
-    ...(conference.domains || []),
-  ].map(d => d.toLowerCase().trim()).filter(Boolean);
+  // Build target domains from track name (split by common separators to get individual terms)
+  const trackTerms = (trackName || '')
+    .toLowerCase()
+    .split(/[,;/&|]+/)
+    .map(t => t.trim())
+    .filter(Boolean);
+
+  // Also include the full track name as one target for broader matching
+  const targetDomains = [...new Set([...trackTerms, ...(trackName ? [trackName.toLowerCase().trim()] : [])])];
+
+  console.log(`[DEBUG-EXPERTISE]   Reviewer domains: [${reviewerDomains.join(', ') || 'EMPTY'}]`);
+  console.log(`[DEBUG-EXPERTISE]   Track name: "${trackName || 'N/A'}"`);
+  console.log(`[DEBUG-EXPERTISE]   Track terms: [${targetDomains.join(', ') || 'EMPTY'}]`);
 
   if (reviewerDomains.length === 0 || targetDomains.length === 0) {
+    console.log(`[DEBUG-EXPERTISE]   ⚠️ No overlap data — reviewerDomains=${reviewerDomains.length}, targetDomains=${targetDomains.length}`);
     return { score: 0, reason: 'No domain overlap data' };
   }
 
@@ -106,14 +138,19 @@ function computeExpertiseMatch(reviewer, submission, conference) {
   );
 
   const matchCount = matchedDomains.length;
-  const overlapRatio = matchCount / Math.max(reviewerDomains.length, targetDomains.length);
-  const expertiseScore = overlapRatio * SCORE_WEIGHTS.EXPERTISE_MATCH;
+
+  // Binary match: if ANY reviewer domain matches the track, award full expertise score.
+  // Having more expertise domains should not penalize the reviewer.
+  const expertiseScore = matchCount > 0 ? SCORE_WEIGHTS.EXPERTISE_MATCH : 0;
+
+  console.log(`[DEBUG-EXPERTISE]   Matched: [${matchedDomains.join(', ') || 'NONE'}] (${matchCount} of ${reviewerDomains.length} domains match)`);
+  console.log(`[DEBUG-EXPERTISE]   Result: ${matchCount > 0 ? `✅ MATCH → full ${SCORE_WEIGHTS.EXPERTISE_MATCH}pts` : '❌ No match → 0pts'}`);
 
   return {
     score: expertiseScore,
     reason: matchCount > 0
-      ? `Domain overlap: ${matchCount} match(es) [${matchedDomains.slice(0, 3).join(', ')}] → ${Math.round(expertiseScore)}pts`
-      : 'No domain overlap',
+      ? `Track match: [${matchedDomains.slice(0, 3).join(', ')}] → ${expertiseScore}pts`
+      : 'No track match',
   };
 }
 
@@ -135,13 +172,17 @@ function computeExpertiseMatch(reviewer, submission, conference) {
  * @returns {boolean} true if conflict detected
  */
 function hasConflict(reviewer, submission, author) {
-  if (!reviewer || !author) return true; // Safety: missing data = conflict
+  if (!reviewer || !author) {
+    console.log(`[DEBUG-CONFLICT] ⚠️ Missing data — reviewer=${!!reviewer}, author=${!!author} → CONFLICT (safety)`);
+    return true; // Safety: missing data = conflict
+  }
 
   const reviewerId = reviewer._id.toString();
   const authorId = author._id.toString();
 
   // 1. Self-review
   if (reviewerId === authorId) {
+    console.log(`[DEBUG-CONFLICT] ❌ Self-review: reviewer=${reviewerId} === author=${authorId}`);
     return true;
   }
 
@@ -154,6 +195,7 @@ function hasConflict(reviewer, submission, author) {
       .filter(ca => ca.userId)
       .map(ca => ca.userId.toString());
     if (coAuthorUserIds.includes(reviewerId)) {
+      console.log(`[DEBUG-CONFLICT] ❌ Co-author conflict (userId): reviewer=${reviewerId} in coAuthorUserIds=[${coAuthorUserIds.join(', ')}]`);
       return true;
     }
 
@@ -162,6 +204,7 @@ function hasConflict(reviewer, submission, author) {
       .map(ca => (ca.email || '').toLowerCase())
       .filter(Boolean);
     if (reviewerEmail && coAuthorEmails.includes(reviewerEmail)) {
+      console.log(`[DEBUG-CONFLICT] ❌ Co-author conflict (email): ${reviewerEmail} in [${coAuthorEmails.join(', ')}]`);
       return true;
     }
   }
@@ -171,6 +214,7 @@ function hasConflict(reviewer, submission, author) {
     const revAff = reviewer.affiliation.toLowerCase().trim();
     const authAff = author.affiliation.toLowerCase().trim();
     if (revAff && authAff && (revAff === authAff || revAff.includes(authAff) || authAff.includes(revAff))) {
+      console.log(`[DEBUG-CONFLICT] ❌ Affiliation conflict: reviewer="${revAff}" vs author="${authAff}"`);
       return true;
     }
   }
@@ -182,6 +226,7 @@ function hasConflict(reviewer, submission, author) {
     if (revDomain && authDomain &&
         !PUBLIC_EMAIL_DOMAINS.includes(revDomain) &&
         revDomain === authDomain) {
+      console.log(`[DEBUG-CONFLICT] ❌ Email domain conflict: ${revDomain} === ${authDomain} (institutional)`);
       return true;
     }
   }
@@ -434,22 +479,27 @@ const BID_BONUS_VALUES = {
 };
 
 /**
- * Calculate the additive bid bonus for an approved bidder.
+ * Calculate the additive bid bonus for a bidder.
  * 
- * Only approved bids receive a bonus. The bonus value is determined by
+ * Any placed bid (PENDING or APPROVED) receives a bonus. The bonus value is determined by
  * the bid's strength tier, with a fallback based on confidence score.
  * 
- * @param {Object|null} bid - Approved bid document (or null)
+ * @param {Object|null} bid - Bid document (any status) or null
  * @returns {{ bonus: number, reason: string }}
  */
 function calculateBidBonus(bid) {
-  if (!bid || bid.status !== 'APPROVED') {
+  console.log(`[DEBUG-BID-BONUS] Calculating bid bonus:`);
+  console.log(`[DEBUG-BID-BONUS]   Bid: ${bid ? `id=${bid._id}, status=${bid.status}, confidence=${bid.confidence}, bidStrength=${bid.bidStrength}` : 'NULL'}`);
+
+  if (!bid) {
+    console.log(`[DEBUG-BID-BONUS]   → No bonus (no bid placed)`);
     return { bonus: 0, reason: '' };
   }
 
   // Use explicit bidStrength if available
   if (bid.bidStrength && BID_BONUS_VALUES[bid.bidStrength] !== undefined) {
     const bonus = BID_BONUS_VALUES[bid.bidStrength];
+    console.log(`[DEBUG-BID-BONUS]   → Explicit bidStrength "${bid.bidStrength}" → +${bonus}pts`);
     return {
       bonus,
       reason: `Bid bonus (${bid.bidStrength}): +${bonus}pts`,
@@ -465,6 +515,7 @@ function calculateBidBonus(bid) {
     else derivedStrength = 'WEAK_INTEREST';
 
     const bonus = BID_BONUS_VALUES[derivedStrength];
+    console.log(`[DEBUG-BID-BONUS]   → Derived from confidence ${bid.confidence}/10 → "${derivedStrength}" → +${bonus}pts`);
     return {
       bonus,
       reason: `Bid bonus (confidence ${bid.confidence}/10 → ${derivedStrength}): +${bonus}pts`,
@@ -472,6 +523,7 @@ function calculateBidBonus(bid) {
   }
 
   // Default bonus for approved bids without strength or confidence data
+  console.log(`[DEBUG-BID-BONUS]   → Default bonus (no strength/confidence data) → +${BID_BONUS_VALUES.DEFAULT}pts`);
   return {
     bonus: BID_BONUS_VALUES.DEFAULT,
     reason: `Bid bonus (approved, default): +${BID_BONUS_VALUES.DEFAULT}pts`,
@@ -491,7 +543,9 @@ function calculateBidBonus(bid) {
  * @returns {number}
  */
 function computeFinalScore(baseScore, bidBonus) {
-  return baseScore + bidBonus;
+  const final = baseScore + bidBonus;
+  console.log(`[DEBUG-FINAL-SCORE] baseScore=${baseScore} + bidBonus=${bidBonus} = finalScore=${final}`);
+  return final;
 }
 
 // ─── Exports ─────────────────────────────────────────────────────────────

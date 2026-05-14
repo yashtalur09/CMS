@@ -7,6 +7,7 @@ import Input from '../components/Input';
 import Textarea from '../components/Textarea';
 import Card from '../components/Card';
 import Loading from '../components/Loading';
+import DomainMultiSelect from '../components/DomainMultiSelect';
 
 const Profile = () => {
   const { user, updateUser } = useAuth();
@@ -325,20 +326,30 @@ const Profile = () => {
                           Research Domains
                         </label>
                         {isEditing ? (
-                          <Textarea
+                          <DomainMultiSelect
                             value={Array.isArray(editedData?.researchDomains) 
-                              ? editedData.researchDomains.join(', ') 
-                              : editedData?.researchDomains || ''}
-                            onChange={(e) => handleChange('researchDomains', e.target.value.split(',').map(d => d.trim()))}
-                            placeholder="Enter domains separated by commas (e.g., AI, Machine Learning)"
-                            rows={2}
+                              ? editedData.researchDomains 
+                              : []}
+                            onChange={(domains) => handleChange('researchDomains', domains)}
+                            placeholder="Select your research domains..."
                           />
                         ) : (
-                          <p className="text-gray-900 py-2">
+                          <div className="py-2">
                             {Array.isArray(profileData?.researchDomains) && profileData.researchDomains.length > 0
-                              ? profileData.researchDomains.join(', ')
-                              : 'Not specified'}
-                          </p>
+                              ? (
+                                <div className="flex flex-wrap gap-1.5">
+                                  {profileData.researchDomains.map((domain) => (
+                                    <span
+                                      key={domain}
+                                      className="inline-flex items-center px-2.5 py-1 bg-primary-50 text-primary-700 text-xs font-medium rounded-full border border-primary-200"
+                                    >
+                                      {domain}
+                                    </span>
+                                  ))}
+                                </div>
+                              )
+                              : <p className="text-gray-500">Not specified</p>}
+                          </div>
                         )}
                       </div>
 
@@ -362,20 +373,30 @@ const Profile = () => {
                           Expertise Domains
                         </label>
                         {isEditing ? (
-                          <Textarea
+                          <DomainMultiSelect
                             value={Array.isArray(editedData?.expertiseDomains) 
-                              ? editedData.expertiseDomains.join(', ') 
-                              : editedData?.expertiseDomains || ''}
-                            onChange={(e) => handleChange('expertiseDomains', e.target.value.split(',').map(d => d.trim()))}
-                            placeholder="Enter domains separated by commas (e.g., Computer Vision, NLP)"
-                            rows={2}
+                              ? editedData.expertiseDomains 
+                              : []}
+                            onChange={(domains) => handleChange('expertiseDomains', domains)}
+                            placeholder="Select your expertise domains..."
                           />
                         ) : (
-                          <p className="text-gray-900 py-2">
+                          <div className="py-2">
                             {Array.isArray(profileData?.expertiseDomains) && profileData.expertiseDomains.length > 0
-                              ? profileData.expertiseDomains.join(', ')
-                              : 'Not specified'}
-                          </p>
+                              ? (
+                                <div className="flex flex-wrap gap-1.5">
+                                  {profileData.expertiseDomains.map((domain) => (
+                                    <span
+                                      key={domain}
+                                      className="inline-flex items-center px-2.5 py-1 bg-primary-50 text-primary-700 text-xs font-medium rounded-full border border-primary-200"
+                                    >
+                                      {domain}
+                                    </span>
+                                  ))}
+                                </div>
+                              )
+                              : <p className="text-gray-500">Not specified</p>}
+                          </div>
                         )}
                       </div>
                     </>

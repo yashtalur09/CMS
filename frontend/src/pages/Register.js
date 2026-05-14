@@ -7,6 +7,7 @@ import Button from '../components/Button';
 import Card from '../components/Card';
 import OrcidButton from '../components/OrcidButton';
 import GoogleButton from '../components/GoogleButton';
+import DomainMultiSelect from '../components/DomainMultiSelect';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -21,7 +22,7 @@ const Register = () => {
     password: '',
     confirmPassword: '',
     role: roleParam || '',
-    expertiseDomains: ''
+    expertiseDomains: []
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -70,9 +71,7 @@ const Register = () => {
       email: formData.email,
       password: formData.password,
       role: formData.role,
-      expertiseDomains: formData.expertiseDomains
-        ? formData.expertiseDomains.split(',').map(d => d.trim())
-        : []
+      expertiseDomains: formData.expertiseDomains || []
     };
 
     const result = await register(userData);
@@ -142,14 +141,14 @@ const Register = () => {
             />
 
             {(formData.role === 'reviewer' || formData.role === 'author') && (
-              <Input
-                label="Expertise Domains (comma-separated)"
-                type="text"
-                name="expertiseDomains"
-                value={formData.expertiseDomains}
-                onChange={handleChange}
-                placeholder="AI, Machine Learning, Data Science"
-              />
+              <div className="mb-4">
+                <DomainMultiSelect
+                  label="Expertise Domains"
+                  value={formData.expertiseDomains}
+                  onChange={(domains) => setFormData(prev => ({ ...prev, expertiseDomains: domains }))}
+                  placeholder="Select your expertise domains..."
+                />
+              </div>
             )}
 
             <Input
