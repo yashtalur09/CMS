@@ -226,6 +226,16 @@ export const getReviewerReviews = async (filters = {}) => {
   return res.data;
 };
 
+export const getReviewerRegistrations = async () => {
+  const res = await axiosInstance.get('/reviewer/registrations');
+  return res.data;
+};
+
+export const registerReviewerConference = async (conferenceId) => {
+  const res = await axiosInstance.post('/reviewer/registrations', { conferenceId });
+  return res.data;
+};
+
 export const getSubmissionReviewsReviewer = async (submissionId, filters = {}) => {
   const params = new URLSearchParams();
   Object.entries(filters).forEach(([key, value]) => {
@@ -254,6 +264,23 @@ export const getConferenceSubmissionsReviewer = async (conferenceId, filters = {
   const res = await axiosInstance.get(
     `/reviewer/conferences/${conferenceId}/submissions?${params}`
   );
+  return res.data;
+};
+
+// ============ REVIEWER CONFERENCE REGISTRATION APIs ============
+
+export const registerReviewerForConference = async (conferenceId) => {
+  const res = await axiosInstance.post(`/reviewer/conferences/${conferenceId}/register`);
+  return res.data;
+};
+
+export const getReviewerConferenceRegistrationStatus = async (conferenceId) => {
+  const res = await axiosInstance.get(`/reviewer/conferences/${conferenceId}/registration-status`);
+  return res.data;
+};
+
+export const getReviewerConferenceRegistrations = async () => {
+  const res = await axiosInstance.get('/reviewer/registrations');
   return res.data;
 };
 
@@ -430,6 +457,16 @@ export const updateAssignment = async (assignmentId, updates) => {
 
 export const deleteAssignment = async (assignmentId) => {
   const res = await axiosInstance.delete(`/organizer/assignments/${assignmentId}`);
+  return res.data;
+};
+
+export const getAssignmentAnalytics = async (conferenceId) => {
+  const res = await axiosInstance.get(`/organizer/conferences/${conferenceId}/assignment-analytics`);
+  return res.data;
+};
+
+export const getEligibleReviewers = async (conferenceId) => {
+  const res = await axiosInstance.get(`/organizer/conferences/${conferenceId}/eligible-reviewers`);
   return res.data;
 };
 

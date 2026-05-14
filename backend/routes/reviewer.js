@@ -8,7 +8,9 @@ const Track = require('../models/Track');
 const Bid = require('../models/Bid');
 const Conference = require('../models/Conference');
 const User = require('../models/User');
+const ReviewerConferenceRegistration = require('../models/ReviewerConferenceRegistration');
 const { sendEmail, templates } = require('../utils/emailService');
+const featureFlags = require('../config/featureFlags');
 
 // All reviewer routes require authentication and reviewer role
 router.use(auth, authorize('reviewer'));
@@ -25,7 +27,32 @@ router.get('/conferences', async (req, res) => {
       .sort({ submissionDeadline: 1 })
       .lean();
 
-    res.json({ success: true, data: { conferences } });
+    // Enrich with reviewer registration status
+    const reviewerId = req.user.userId;
+    const registrations = await ReviewerConferenceRegistration.find({
+      reviewerId,
+      conferenceId: { $in: conferences.map(c => c._id) }
+    }).lean();
+
+    const regMap = new Map();
+    for (const reg of registrations) {
+      regMap.set(reg.conferenceId.toString(), reg);
+    }
+
+    const enrichedConferences = conferences.map(c => {
+      const reg = regMap.get(c._id.toString());
+      return {
+        ...c,
+        reviewerRegistration: reg ? {
+          status: reg.status,
+          active: reg.active,
+          isEligible: reg.status === 'REGISTERED_ACTIVE' && reg.active,
+          registeredAt: reg.registeredAt
+        } : null
+      };
+    });
+
+    res.json({ success: true, data: { conferences: enrichedConferences } });
   } catch (error) {
     console.error('Reviewer get conferences error:', error);
     res.status(500).json({ success: false, message: 'Error fetching conferences', error: error.message });
@@ -120,24 +147,73 @@ router.get('/conferences/:id/tracks', async (req, res) => {
  */
 router.post('/bids', [
   body('submissionId').notEmpty().withMessage('submissionId is required'),
-  body('confidence').optional().isNumeric().withMessage('confidence must be a number')
+  body('confidence').optional().isNumeric().withMessage('confidence must be a number'),
+  body('bidStrength').optional().isIn(['STRONG_ACCEPT', 'INTERESTED', 'NEUTRAL', 'WEAK_INTEREST']).withMessage('Invalid bid strength')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
 
-    const { submissionId, confidence = 0 } = req.body;
+    const { submissionId, confidence = 0, bidStrength = null } = req.body;
+    const reviewerId = req.user.userId;
+
     const submission = await Submission.findById(submissionId).lean();
     if (!submission) return res.status(404).json({ success: false, message: 'Submission not found' });
 
     // Ensure submission has a track
     if (!submission.trackId) return res.status(400).json({ success: false, message: 'Submission is not associated with a track' });
 
+    // Resolve conference from track
+    const track = await Track.findById(submission.trackId).lean();
+    if (!track) return res.status(400).json({ success: false, message: 'Track not found' });
+    const conferenceId = track.conferenceId;
+
+    // Phase 3: Enforce conference registration for bidding
+    if (featureFlags.ENABLE_REGISTRATION_REQUIRED_BIDDING) {
+      const registration = await ReviewerConferenceRegistration.findOne({
+        reviewerId,
+        conferenceId,
+        active: true
+      }).lean();
+
+      if (!registration) {
+        return res.status(403).json({
+          success: false,
+          error: {
+            code: 'REVIEWER_NOT_REGISTERED',
+            message: 'You must register for this conference before placing bids. Please register first.'
+          }
+        });
+      }
+
+      if (registration.status === 'BLOCKED') {
+        return res.status(403).json({
+          success: false,
+          error: {
+            code: 'REVIEWER_BLOCKED',
+            message: 'Your registration for this conference has been blocked. Contact the organizer.'
+          }
+        });
+      }
+
+      if (registration.status === 'REGISTERED_CANCELLED' || registration.status === 'REGISTERED_REJECTED') {
+        return res.status(403).json({
+          success: false,
+          error: {
+            code: 'REVIEWER_INELIGIBLE',
+            message: `Your registration status (${registration.status}) does not allow bidding.`
+          }
+        });
+      }
+    }
+
     const bid = new Bid({
-      reviewerId: req.user.userId,
+      reviewerId,
       submissionId: submission._id,
       trackId: submission.trackId,
-      confidence
+      conferenceId,
+      confidence,
+      bidStrength
     });
 
     await bid.save();
@@ -723,6 +799,140 @@ router.get('/certificates/:id/download', async (req, res) => {
   } catch (error) {
     console.error('Download reviewer certificate error:', error);
     res.status(500).json({ success: false, message: 'Error downloading certificate', error: error.message });
+  }
+});
+
+// ============ REVIEWER CONFERENCE REGISTRATION ============
+
+/**
+ * @route   POST /api/reviewer/conferences/:id/register
+ * @desc    Register as a reviewer for a conference
+ * @access  Private (Reviewer)
+ */
+router.post('/conferences/:id/register', async (req, res) => {
+  try {
+    const reviewerId = req.user.userId;
+    const conferenceId = req.params.id;
+
+    // Verify conference exists and is active
+    const conference = await Conference.findById(conferenceId).lean();
+    if (!conference) {
+      return res.status(404).json({ success: false, message: 'Conference not found' });
+    }
+    if (conference.status !== 'active') {
+      return res.status(400).json({ success: false, message: 'Conference is not active' });
+    }
+
+    // Check if already registered
+    const existing = await ReviewerConferenceRegistration.findOne({ reviewerId, conferenceId }).lean();
+    if (existing) {
+      if (existing.status === 'BLOCKED') {
+        return res.status(403).json({
+          success: false,
+          error: { code: 'REVIEWER_BLOCKED', message: 'You are blocked from this conference. Contact the organizer.' }
+        });
+      }
+      if (existing.status === 'REGISTERED_ACTIVE' && existing.active) {
+        return res.status(409).json({
+          success: false,
+          message: 'Already registered for this conference',
+          data: existing
+        });
+      }
+      // Re-activate cancelled/rejected registration
+      const updated = await ReviewerConferenceRegistration.findByIdAndUpdate(existing._id, {
+        status: conference.fee > 0 ? 'REGISTERED_PENDING_PAYMENT' : 'REGISTERED_ACTIVE',
+        paymentStatus: conference.fee > 0 ? 'pending' : 'not_required',
+        active: true,
+        registeredAt: new Date()
+      }, { new: true });
+
+      return res.json({ success: true, message: 'Registration reactivated', data: updated });
+    }
+
+    // Create new registration
+    const registration = new ReviewerConferenceRegistration({
+      reviewerId,
+      conferenceId,
+      status: conference.fee > 0 ? 'REGISTERED_PENDING_PAYMENT' : 'REGISTERED_ACTIVE',
+      paymentStatus: conference.fee > 0 ? 'pending' : 'not_required',
+      registeredBy: reviewerId
+    });
+
+    await registration.save();
+    res.status(201).json({ success: true, message: 'Registered for conference', data: registration });
+  } catch (error) {
+    console.error('Reviewer conference registration error:', error);
+    res.status(500).json({ success: false, message: 'Error registering for conference', error: error.message });
+  }
+});
+
+/**
+ * @route   GET /api/reviewer/conferences/:id/registration-status
+ * @desc    Check reviewer's registration status for a conference
+ * @access  Private (Reviewer)
+ */
+router.get('/conferences/:id/registration-status', async (req, res) => {
+  try {
+    const registration = await ReviewerConferenceRegistration.findOne({
+      reviewerId: req.user.userId,
+      conferenceId: req.params.id
+    }).lean();
+
+    if (!registration) {
+      return res.json({
+        success: true,
+        data: {
+          registered: false,
+          isEligible: false,
+          status: 'UNREGISTERED'
+        }
+      });
+    }
+
+    const conference = await Conference.findById(req.params.id).select('fee').lean();
+    const hasFee = conference && conference.fee > 0;
+
+    const isEligible = registration.active && (
+      registration.status === 'REGISTERED_ACTIVE' ||
+      (registration.status === 'REGISTERED_PENDING_PAYMENT' && !hasFee)
+    );
+
+    res.json({
+      success: true,
+      data: {
+        registered: true,
+        isEligible,
+        status: registration.status,
+        paymentStatus: registration.paymentStatus,
+        active: registration.active,
+        registeredAt: registration.registeredAt
+      }
+    });
+  } catch (error) {
+    console.error('Get registration status error:', error);
+    res.status(500).json({ success: false, message: 'Error checking registration', error: error.message });
+  }
+});
+
+/**
+ * @route   GET /api/reviewer/registrations
+ * @desc    List all conference registrations for the current reviewer
+ * @access  Private (Reviewer)
+ */
+router.get('/registrations', async (req, res) => {
+  try {
+    const registrations = await ReviewerConferenceRegistration.find({
+      reviewerId: req.user.userId
+    })
+      .populate('conferenceId', 'name venue startDate endDate status fee')
+      .sort({ registeredAt: -1 })
+      .lean();
+
+    res.json({ success: true, data: registrations });
+  } catch (error) {
+    console.error('Get reviewer registrations error:', error);
+    res.status(500).json({ success: false, message: 'Error fetching registrations', error: error.message });
   }
 });
 

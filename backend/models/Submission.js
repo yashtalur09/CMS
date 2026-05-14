@@ -22,6 +22,14 @@ const submissionSchema = new mongoose.Schema({
     default: 'submitted'
   },
   assignedReviewers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  assignedCount: {
+    type: Number,
+    default: 0,
+    min: [0, 'Assigned count cannot be negative']
+  },
+  abstractVector: [{
+    type: Number
+  }],
   decision: {
     decidedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     decidedAt: { type: Date },
@@ -51,5 +59,6 @@ submissionSchema.index({ conferenceId: 1 });
 submissionSchema.index({ trackId: 1 });
 submissionSchema.index({ authorId: 1, status: 1 });
 submissionSchema.index({ 'coAuthors.email': 1 });
+submissionSchema.index({ conferenceId: 1, assignedCount: 1, keywords: 1 });
 
 module.exports = mongoose.model('Submission', submissionSchema);

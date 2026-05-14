@@ -1583,85 +1583,60 @@ router.post('/bids/bulk-update', [
 // ============ ASSIGNMENT MANAGEMENT ROUTES ============
 
 const Assignment = require('../models/Assignment');
+const ReviewerConferenceRegistration = require('../models/ReviewerConferenceRegistration');
+const {
+  computeMatchScore: _computeMatchScore,
+  hasConflict,
+  buildBidMap,
+  buildReviewerBidLookup,
+  buildCapacityCache,
+  buildConflictCache,
+  buildDomainIndex,
+  buildPaperAssignmentCounts,
+  buildExistingAssignmentSet,
+  sortBidCoveredCandidates,
+  sortNoBidCandidates,
+  findDomainMatchedReviewers,
+  calculateBidBonus,
+  computeFinalScore,
+} = require('../utils/assignmentEngine');
+const featureFlags = require('../config/featureFlags');
 
 /**
- * Scoring function for reviewer-paper matching
- * Returns score 0-100
+ * Wrapper to maintain backward-compat call signature for manual assignment.
+ * The new engine expects { bid, reviewer, submission, conference, currentLoad, maxLoad }.
  */
-function computeMatchScore(bid, reviewer, submission, conference) {
-  let score = 0;
-
-  // BID_PREFERENCE (50% weight)
-  if (bid && bid.status === 'APPROVED') {
-    score += 50;
-  } else if (!bid) {
-    // No bid - medium score
-    score += 25;
-  }
-  // REJECTED/WITHDRAWN bids should not reach here
-
-  // EXPERTISE_MATCH (30% weight)
-  const reviewerDomains = (reviewer.expertiseDomains || []).map(d => d.toLowerCase());
-  const conferenceDomains = (conference.domains || []).map(d => d.toLowerCase());
-
-  if (reviewerDomains.length > 0 && conferenceDomains.length > 0) {
-    const matchCount = reviewerDomains.filter(rd =>
-      conferenceDomains.some(cd => cd.includes(rd) || rd.includes(cd))
-    ).length;
-    const expertiseScore = (matchCount / Math.max(reviewerDomains.length, conferenceDomains.length)) * 30;
-    score += expertiseScore;
-  }
-
-  // CONFIDENCE_SCORE (20% weight)
-  if (bid && bid.confidence) {
-    score += (bid.confidence / 10) * 20;
-  }
-
-  return Math.round(score);
-}
-
-/**
- * Check for conflicts between reviewer and submission
- */
-function hasConflict(reviewer, submission, author) {
-  // Same person
-  if (reviewer._id.toString() === author._id.toString()) {
-    return true;
-  }
-
-  // Same institution (by affiliation)
-  if (reviewer.affiliation && author.affiliation) {
-    const revAff = reviewer.affiliation.toLowerCase();
-    const authAff = author.affiliation.toLowerCase();
-    if (revAff === authAff || revAff.includes(authAff) || authAff.includes(revAff)) {
-      return true;
-    }
-  }
-
-  // Same email domain (potential co-affiliation)
-  if (reviewer.email && author.email) {
-    const revDomain = reviewer.email.split('@')[1];
-    const authDomain = author.email.split('@')[1];
-    // Only check for institutional domains, not public email providers
-    const publicDomains = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com'];
-    if (!publicDomains.includes(revDomain) && revDomain === authDomain) {
-      return true;
-    }
-  }
-
-  return false;
+function computeMatchScore(bid, reviewer, submission, conference, currentLoad, maxLoad) {
+  const result = _computeMatchScore({
+    bid,
+    reviewer,
+    submission,
+    conference,
+    currentLoad: currentLoad || 0,
+    maxLoad: maxLoad || (reviewer.maxLoad || 10),
+  });
+  return result;
 }
 
 /**
  * @route   POST /api/organizer/conferences/:id/auto-assign
- * @desc    Run automated reviewer assignment algorithm
+ * @desc    Run automated reviewer assignment algorithm (5-stage workflow)
  * @access  Private (Organizer)
+ * 
+ * Stages:
+ *   1. Data loading & index building
+ *   2. Submission categorization (bid-covered vs no-bid)
+ *   3. Bid-covered assignment (Scenario A: sufficient bids, B: insufficient)
+ *   4. No-bid assignment (domain matching + fallback)
+ *   5. Finalization (transactional persistence or dry-run stats)
  */
 router.post('/conferences/:id/auto-assign', [
   body('reviewersPerPaper').optional().isInt({ min: 1, max: 10 }).withMessage('reviewersPerPaper must be 1-10'),
   body('maxPapersPerReviewer').optional().isInt({ min: 1, max: 50 }).withMessage('maxPapersPerReviewer must be 1-50'),
-  body('clearExisting').optional().isBoolean()
+  body('clearExisting').optional().isBoolean(),
+  body('dryRun').optional().isBoolean()
 ], async (req, res) => {
+  const startTime = Date.now();
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -1673,176 +1648,437 @@ router.post('/conferences/:id/auto-assign', [
     const {
       reviewersPerPaper = 3,
       maxPapersPerReviewer = 4,
-      clearExisting = false
+      clearExisting = false,
+      dryRun = false
     } = req.body;
 
-    // Verify conference ownership
+    // Validate dry-run feature flag
+    if (dryRun && !featureFlags.ENABLE_DRY_RUN) {
+      return res.status(400).json({ success: false, message: 'Dry-run mode is not enabled' });
+    }
+
+    // ─── STAGE 0: Build Eligible Reviewer Pool ─────────────────────────
     const conference = await Conference.findOne({ _id: conferenceId, organizerId }).lean();
     if (!conference) {
       return res.status(404).json({ success: false, message: 'Conference not found' });
     }
 
-    // Get all tracks
     const tracks = await Track.find({ conferenceId }).select('_id').lean();
     const trackIds = tracks.map(t => t._id);
 
-    // Get all submissions for this conference
-    const submissions = await Submission.find({ trackId: { $in: trackIds } })
-      .populate('authorId', 'name email affiliation')
-      .lean();
+    // Parallel data loading
+    const [submissions, allBids, allReviewers] = await Promise.all([
+      Submission.find({ trackId: { $in: trackIds } })
+        .populate('authorId', 'name email affiliation')
+        .lean(),
+      // Load APPROVED + PENDING bids: approved for assignment, pending for prioritization
+      Bid.find({ trackId: { $in: trackIds }, status: { $in: ['APPROVED', 'PENDING'] } }).lean(),
+      User.find({ role: 'reviewer' }).lean(),
+    ]);
+
+    // Separate: approved bids are used for actual assignment, all bids for categorization
+    const approvedBids = allBids.filter(b => b.status === 'APPROVED');
 
     if (submissions.length === 0) {
-      return res.json({ success: true, message: 'No submissions to assign', data: { assigned: 0 } });
+      return res.json({
+        success: true,
+        message: 'No submissions to assign',
+        stats: { totalAssignments: 0, bidCoveredCount: 0, noBidCount: 0, fallbackCount: 0, averageScore: 0 }
+      });
     }
 
-    // Get all approved bids
-    const approvedBids = await Bid.find({
-      trackId: { $in: trackIds },
-      status: 'APPROVED'
-    }).lean();
+    // Stage 0: Filter reviewers by conference eligibility
+    let reviewers;
+    let eligibilityLog = {};
 
-    // Create bid lookup map
-    const bidMap = {};
-    for (const bid of approvedBids) {
-      const key = `${bid.reviewerId.toString()}_${bid.submissionId.toString()}`;
-      bidMap[key] = bid;
+    if (featureFlags.ENABLE_CONFERENCE_ELIGIBILITY) {
+      const hasFee = conference.fee > 0;
+      const eligibleIds = await ReviewerConferenceRegistration.getEligibleReviewerIds(conferenceId, hasFee);
+      reviewers = allReviewers.filter(r => eligibleIds.has(r._id.toString()));
+
+      eligibilityLog = {
+        totalReviewersInSystem: allReviewers.length,
+        conferenceRegistered: eligibleIds.size,
+        eligibleAfterFilter: reviewers.length,
+        filteredOut: allReviewers.length - reviewers.length,
+      };
+      console.log(`[Auto-Assign] Stage 0 — Eligibility: ${JSON.stringify(eligibilityLog)}`);
+    } else {
+      reviewers = allReviewers;
+      eligibilityLog = {
+        totalReviewersInSystem: allReviewers.length,
+        conferenceRegistered: 'N/A (eligibility disabled)',
+        eligibleAfterFilter: allReviewers.length,
+        filteredOut: 0,
+      };
     }
-
-    // Get all reviewers (users with reviewer role)
-    const reviewers = await User.find({ role: 'reviewer' }).lean();
 
     if (reviewers.length === 0) {
-      return res.status(400).json({ success: false, message: 'No reviewers available' });
-    }
-
-    // Clear existing non-locked assignments if requested
-    if (clearExisting) {
-      await Assignment.deleteMany({
-        conferenceId,
-        locked: false,
-        status: 'ACTIVE'
+      return res.status(400).json({
+        success: false,
+        message: 'No conference-registered eligible reviewers are available for assignment.',
+        eligibilityLog
       });
     }
 
-    // Get existing assignments
-    const existingAssignments = await Assignment.find({
-      conferenceId,
-      status: 'ACTIVE'
-    }).lean();
-
-    // Track current assignments
-    const paperAssignments = {}; // submissionId -> count
-    const reviewerLoad = {}; // reviewerId -> count
-
-    for (const existing of existingAssignments) {
-      const subId = existing.submissionId.toString();
-      const revId = existing.reviewerId.toString();
-      paperAssignments[subId] = (paperAssignments[subId] || 0) + 1;
-      reviewerLoad[revId] = (reviewerLoad[revId] || 0) + 1;
+    // Clear existing non-locked assignments if requested (and not dry-run)
+    if (clearExisting && !dryRun) {
+      await Assignment.deleteMany({ conferenceId, locked: false, status: 'ACTIVE' });
     }
 
-    // Build all possible (reviewer, paper) pairs with scores
-    const candidates = [];
+    // Load existing assignments (after potential clear)
+    const existingAssignments = await Assignment.find({ conferenceId, status: 'ACTIVE' }).lean();
 
-    for (const submission of submissions) {
-      const subId = submission._id.toString();
+    // ─── STAGE 1: Index Building ──────────────────────────────────────
+    // bidMap uses approved bids only (for scoring + assignment)
+    const bidMap = buildBidMap(approvedBids);
+    const reviewerBidLookup = buildReviewerBidLookup(approvedBids);
 
-      // Skip if already has enough reviewers
-      if ((paperAssignments[subId] || 0) >= reviewersPerPaper) {
-        continue;
+    // allBidMap uses ALL bids (approved + pending) for paper prioritization
+    const allBidMap = buildBidMap(allBids);
+
+    const capacityCache = buildCapacityCache(reviewers, existingAssignments);
+    const conflictCache = buildConflictCache(reviewers, submissions);
+    const existingSet = buildExistingAssignmentSet(existingAssignments);
+    const paperCounts = buildPaperAssignmentCounts(existingAssignments);
+
+    // Build domain index for no-bid matching
+    const domainIndex = featureFlags.ENABLE_DOMAIN_MATCHING
+      ? buildDomainIndex(reviewers)
+      : new Map();
+
+    // Reviewer lookup by ID (eligible reviewers only)
+    const reviewerById = new Map();
+    for (const r of reviewers) {
+      reviewerById.set(r._id.toString(), r);
+    }
+
+    // ─── STAGE 1: Submission Categorization ───────────────────────────
+    // Papers with ANY bid (approved or pending) are processed FIRST.
+    // This ensures reviewer capacity is reserved for bid-covered papers.
+    const bidCoveredPapers = [];
+    const noBidPapers = [];
+
+    for (const sub of submissions) {
+      const subId = sub._id.toString();
+      // Skip if already fully assigned
+      if ((paperCounts.get(subId) || 0) >= reviewersPerPaper) continue;
+
+      // Use allBidMap (includes pending) for categorization
+      const anyBids = allBidMap.get(subId);
+      if (anyBids && anyBids.length > 0) {
+        bidCoveredPapers.push(sub);
+      } else {
+        noBidPapers.push(sub);
       }
+    }
 
-      for (const reviewer of reviewers) {
-        const revId = reviewer._id.toString();
+    console.log(`[Auto-Assign] Categorized: ${bidCoveredPapers.length} bid-covered, ${noBidPapers.length} no-bid (from ${submissions.length} total)`);
 
-        // Skip if already assigned
-        const existingAssignment = existingAssignments.find(
-          a => a.reviewerId.toString() === revId && a.submissionId.toString() === subId
-        );
-        if (existingAssignment) continue;
+    // ─── Helper: check if a reviewer can be assigned to a submission ──
+    function isEligible(revId, subId) {
+      // Already assigned?
+      if (existingSet.has(`${revId}_${subId}`)) return false;
+      // Conflict?
+      if (conflictCache.has(`${revId}|${subId}`)) return false;
+      // Over capacity?
+      const cap = capacityCache.get(revId);
+      if (cap && cap.used >= Math.min(cap.max, maxPapersPerReviewer)) return false;
+      return true;
+    }
 
-        // Skip if reviewer at max load
-        if ((reviewerLoad[revId] || 0) >= maxPapersPerReviewer) continue;
+    // Track new assignments to create
+    const newAssignments = [];
+    const submissionUpdates = new Map(); // subId -> [reviewerIds]
+    let bidCoveredCount = 0;
+    let noBidCount = 0;
+    let fallbackCount = 0;
+    let totalScore = 0;
 
-        // Check conflicts
-        if (hasConflict(reviewer, submission, submission.authorId)) continue;
+    // ─── Helper: record an assignment ─────────────────────────────────
+    function recordAssignment(revId, sub, source, matchResult, bidObj) {
+      const subId = sub._id.toString();
 
-        // Get bid if exists
-        const bidKey = `${revId}_${subId}`;
-        const bid = bidMap[bidKey];
+      newAssignments.push({
+        reviewerId: revId,
+        submissionId: sub._id,
+        trackId: sub.trackId,
+        conferenceId: conference._id,
+        bidId: bidObj ? bidObj._id : null,
+        source,
+        matchScore: matchResult.score,
+        matchReason: matchResult.reason,
+        assignedAt: new Date(),
+      });
 
-        // IMPORTANT: Only assign reviewers who have an APPROVED bid for this paper
-        // Skip if no bid exists or bid is not APPROVED
-        if (!bid || bid.status !== 'APPROVED') continue;
+      // Update tracking structures
+      existingSet.add(`${revId}_${subId}`);
+      paperCounts.set(subId, (paperCounts.get(subId) || 0) + 1);
+      const cap = capacityCache.get(revId);
+      if (cap) cap.used += 1;
 
-        // Compute score
-        const matchScore = computeMatchScore(bid, reviewer, submission, conference);
+      totalScore += matchResult.score;
 
-        candidates.push({
-          reviewerId: reviewer._id,
-          submissionId: submission._id,
-          trackId: submission.trackId,
-          bidId: bid._id,
-          matchScore,
+      if (!submissionUpdates.has(subId)) {
+        submissionUpdates.set(subId, []);
+      }
+      submissionUpdates.get(subId).push(revId);
+
+      // Track source counts
+      if (source === 'BID' || source === 'BID_PRIORITY') bidCoveredCount++;
+      else if (source === 'FALLBACK') fallbackCount++;
+      else noBidCount++;
+    }
+
+    // ─── STAGE 2A: Assign ALL Bidders First (capacity-preserving) ──────
+    // CRITICAL: Process every bidder across ALL papers BEFORE filling any
+    // remaining slots from the general pool. This prevents general-pool
+    // assignments from exhausting reviewer capacity and blocking bidders
+    // on later papers.
+    //
+    // Example: 4 reviewers, 52 papers. Without this two-pass approach,
+    // Case B fallback on Paper #1 could consume Reviewer B's capacity,
+    // preventing Reviewer B from being assigned to Paper #5 which they
+    // explicitly bid on.
+
+    const bidCoveredPapersNeedingFill = []; // Track papers that need Pass B
+
+    for (const sub of bidCoveredPapers) {
+      const subId = sub._id.toString();
+      const needed = reviewersPerPaper - (paperCounts.get(subId) || 0);
+      if (needed <= 0) continue;
+
+      const subBids = bidMap.get(subId) || [];
+
+      // Score all eligible bidding reviewers
+      const bidCandidates = [];
+      for (const { reviewerId: revId, bid } of subBids) {
+        if (!isEligible(revId, subId)) continue;
+        const reviewer = reviewerById.get(revId);
+        if (!reviewer) continue;
+
+        const cap = capacityCache.get(revId) || { used: 0, max: 10 };
+        const matchResult = computeMatchScore(bid, reviewer, sub, conference, cap.used, cap.max);
+
+        // Apply additive bid bonus (PRD Section 9.4)
+        const bidBonusResult = featureFlags.ENABLE_BID_BONUS
+          ? calculateBidBonus(bid)
+          : { bonus: 0, reason: '' };
+        const finalScore = computeFinalScore(matchResult.score, bidBonusResult.bonus);
+        const fullReason = [matchResult.reason, bidBonusResult.reason].filter(Boolean).join('; ');
+
+        bidCandidates.push({
+          reviewerId: revId,
+          score: finalScore,
+          baseScore: matchResult.score,
+          bidBonus: bidBonusResult.bonus,
+          reason: fullReason,
+          bidTimestamp: bid.bidTimestamp || bid.createdAt,
+          bid,
           reviewer,
-          submission
         });
       }
+
+      // Sort bidders by finalScore (includes bid bonus)
+      sortBidCoveredCandidates(bidCandidates);
+
+      // Assign up to `needed` bidders (but ONLY bidders — no fallback yet)
+      const toAssign = bidCandidates.slice(0, needed);
+      for (const c of toAssign) {
+        recordAssignment(c.reviewerId, sub, 'BID_PRIORITY', { score: c.baseScore, reason: c.reason }, c.bid);
+      }
+
+      // If still unfilled after assigning all available bidders, queue for Pass B
+      const stillNeeded = reviewersPerPaper - (paperCounts.get(subId) || 0);
+      if (stillNeeded > 0) {
+        bidCoveredPapersNeedingFill.push(sub);
+      }
     }
 
-    // Sort by score descending
-    candidates.sort((a, b) => b.matchScore - a.matchScore);
+    console.log(`[Auto-Assign] Stage 2A complete: ${bidCoveredCount} bid assignments, ${bidCoveredPapersNeedingFill.length} papers need fill`);
 
-    // Greedy assignment
-    const newAssignments = [];
+    // ─── STAGE 2B: Fill Remaining Slots on Bid-Covered Papers ─────────
+    // Now that ALL bidders have been assigned, fill unfilled slots from
+    // the general conference-eligible reviewer pool.
+    for (const sub of bidCoveredPapersNeedingFill) {
+      const subId = sub._id.toString();
+      const remainingNeeded = reviewersPerPaper - (paperCounts.get(subId) || 0);
+      if (remainingNeeded <= 0) continue;
 
-    for (const candidate of candidates) {
-      const subId = candidate.submissionId.toString();
-      const revId = candidate.reviewerId.toString();
+      const generalCandidates = [];
+      // Try domain-matched reviewers first
+      if (featureFlags.ENABLE_DOMAIN_MATCHING) {
+        const domainReviewerIds = findDomainMatchedReviewers(sub, conference, domainIndex);
+        for (const revId of domainReviewerIds) {
+          if (!isEligible(revId, subId)) continue;
+          const reviewer = reviewerById.get(revId);
+          if (!reviewer) continue;
+          const cap = capacityCache.get(revId) || { used: 0, max: 10 };
+          const matchResult = computeMatchScore(null, reviewer, sub, conference, cap.used, cap.max);
+          generalCandidates.push({
+            reviewerId: revId, score: matchResult.score, reason: matchResult.reason,
+            lastAssignedAt: reviewer.lastAssignedAt, reviewer,
+          });
+        }
+      }
+      // Expand to all eligible reviewers if still insufficient
+      if (generalCandidates.length < remainingNeeded) {
+        for (const reviewer of reviewers) {
+          const revId = reviewer._id.toString();
+          if (generalCandidates.some(c => c.reviewerId === revId)) continue;
+          if (!isEligible(revId, subId)) continue;
+          const cap = capacityCache.get(revId) || { used: 0, max: 10 };
+          const matchResult = computeMatchScore(null, reviewer, sub, conference, cap.used, cap.max);
+          generalCandidates.push({
+            reviewerId: revId, score: matchResult.score, reason: matchResult.reason + ' (fallback)',
+            lastAssignedAt: reviewer.lastAssignedAt, reviewer, isFallback: true,
+          });
+        }
+      }
+      sortNoBidCandidates(generalCandidates);
+      const toFill = generalCandidates.slice(0, remainingNeeded);
+      for (const c of toFill) {
+        const source = c.isFallback ? 'FALLBACK' : 'AUTO_GENERAL';
+        recordAssignment(c.reviewerId, sub, source, { score: c.score, reason: c.reason }, null);
+      }
+    }
 
-      // Check constraints again (may have changed during assignment)
-      if ((paperAssignments[subId] || 0) >= reviewersPerPaper) continue;
-      if ((reviewerLoad[revId] || 0) >= maxPapersPerReviewer) continue;
+    // ─── STAGE 3: General Assignment (No-Bid Papers) ──────────────────
+    if (featureFlags.ENABLE_DOMAIN_MATCHING) {
+      for (const sub of noBidPapers) {
+        const subId = sub._id.toString();
+        const needed = reviewersPerPaper - (paperCounts.get(subId) || 0);
+        if (needed <= 0) continue;
 
-      // Create assignment
-      const assignment = new Assignment({
-        reviewerId: candidate.reviewerId,
-        submissionId: candidate.submissionId,
-        trackId: candidate.trackId,
-        conferenceId: conference._id,
-        bidId: candidate.bidId,
-        source: 'AUTO',
-        matchScore: candidate.matchScore,
-        assignedAt: new Date()
+        // Find domain-matched reviewers
+        const domainReviewerIds = findDomainMatchedReviewers(sub, conference, domainIndex);
+        const candidates = [];
+
+        for (const revId of domainReviewerIds) {
+          if (!isEligible(revId, subId)) continue;
+          const reviewer = reviewerById.get(revId);
+          if (!reviewer) continue;
+
+          const cap = capacityCache.get(revId) || { used: 0, max: 10 };
+          const matchResult = computeMatchScore(null, reviewer, sub, conference, cap.used, cap.max);
+
+          candidates.push({
+            reviewerId: revId,
+            score: matchResult.score,
+            reason: matchResult.reason,
+            lastAssignedAt: reviewer.lastAssignedAt,
+            reviewer,
+          });
+        }
+
+        // Fallback: if insufficient domain reviewers, expand to all reviewers
+        if (candidates.length < needed) {
+          for (const reviewer of reviewers) {
+            const revId = reviewer._id.toString();
+            if (candidates.some(c => c.reviewerId === revId)) continue;
+            if (!isEligible(revId, subId)) continue;
+
+            const cap = capacityCache.get(revId) || { used: 0, max: 10 };
+            const matchResult = computeMatchScore(null, reviewer, sub, conference, cap.used, cap.max);
+
+            candidates.push({
+              reviewerId: revId,
+              score: matchResult.score,
+              reason: matchResult.reason + ' (fallback)',
+              lastAssignedAt: reviewer.lastAssignedAt,
+              reviewer,
+              isFallback: true,
+            });
+          }
+        }
+
+        sortNoBidCandidates(candidates);
+
+        const toAssign = candidates.slice(0, needed);
+        for (const c of toAssign) {
+          const source = c.isFallback ? 'FALLBACK' : 'DOMAIN_TOP_K';
+          recordAssignment(c.reviewerId, sub, source, { score: c.score, reason: c.reason }, null);
+        }
+      }
+    }
+
+    // ─── STAGE 4: Validation & Finalization ───────────────────────────
+    const duration = Date.now() - startTime;
+
+    // Calculate final stats
+    const allPaperCounts = new Map(paperCounts);
+    const papersFullyAssigned = [...allPaperCounts.values()].filter(c => c >= reviewersPerPaper).length;
+
+    const stats = {
+      totalAssignments: newAssignments.length,
+      bidCoveredCount,
+      noBidCount,
+      fallbackCount,
+      averageScore: newAssignments.length > 0 ? Math.round(totalScore / newAssignments.length) : 0,
+      totalSubmissions: submissions.length,
+      papersFullyAssigned,
+      papersUnderAssigned: submissions.length - papersFullyAssigned,
+      reviewersUsed: new Set(newAssignments.map(a => a.reviewerId.toString())).size,
+      dryRun,
+      duration: `${duration}ms`,
+      config: { reviewersPerPaper, maxPapersPerReviewer, clearExisting },
+      eligibility: eligibilityLog,
+    };
+
+    // Log assignment run
+    console.log(`[Auto-Assign] Conference ${conferenceId}: ${newAssignments.length} assignments in ${duration}ms | Bid: ${bidCoveredCount} | Domain: ${noBidCount} | Fallback: ${fallbackCount} | Avg Score: ${stats.averageScore} | DryRun: ${dryRun}`);
+
+    if (dryRun) {
+      return res.json({
+        success: true,
+        message: 'Dry-run completed — no data was persisted',
+        stats,
       });
-
-      newAssignments.push(assignment);
-      paperAssignments[subId] = (paperAssignments[subId] || 0) + 1;
-      reviewerLoad[revId] = (reviewerLoad[revId] || 0) + 1;
     }
 
-    // Bulk insert assignments
+    // Persist within a MongoDB transaction
     if (newAssignments.length > 0) {
-      await Assignment.insertMany(newAssignments);
+      const session = await mongoose.startSession();
+      try {
+        session.startTransaction();
+
+        // Bulk insert assignments
+        await Assignment.insertMany(newAssignments, { session });
+
+        // Update submission assignedReviewers + assignedCount
+        const updatePromises = [];
+        for (const [subId, reviewerIds] of submissionUpdates) {
+          updatePromises.push(
+            Submission.findByIdAndUpdate(subId, {
+              $addToSet: { assignedReviewers: { $each: reviewerIds.map(id => new mongoose.Types.ObjectId(id)) } },
+              $inc: { assignedCount: reviewerIds.length },
+            }, { session })
+          );
+        }
+
+        // Update reviewer lastAssignedAt
+        const reviewerUpdateIds = [...new Set(newAssignments.map(a => a.reviewerId.toString()))];
+        for (const revId of reviewerUpdateIds) {
+          updatePromises.push(
+            User.findByIdAndUpdate(revId, { lastAssignedAt: new Date() }, { session })
+          );
+        }
+
+        await Promise.all(updatePromises);
+        await session.commitTransaction();
+      } catch (txError) {
+        await session.abortTransaction();
+        console.error('[Auto-Assign] Transaction failed, rolled back:', txError);
+        throw txError;
+      } finally {
+        session.endSession();
+      }
     }
-
-    // Calculate stats
-    const papersFullyAssigned = Object.values(paperAssignments)
-      .filter(count => count >= reviewersPerPaper).length;
-
-    const papersUnderAssigned = submissions.length - papersFullyAssigned;
 
     res.json({
       success: true,
-      message: `Auto-assignment completed`,
-      data: {
-        assigned: newAssignments.length,
-        totalSubmissions: submissions.length,
-        papersFullyAssigned,
-        papersUnderAssigned,
-        reviewersUsed: Object.keys(reviewerLoad).length,
-        config: { reviewersPerPaper, maxPapersPerReviewer }
-      }
+      message: 'Auto-assignment completed',
+      stats,
     });
 
   } catch (error) {
@@ -1922,7 +2158,7 @@ router.get('/conferences/:id/assignments', async (req, res) => {
 
 /**
  * @route   POST /api/organizer/assignments
- * @desc    Create a manual assignment
+ * @desc    Create a manual assignment (enhanced with capacity-aware scoring)
  * @access  Private (Organizer)
  */
 router.post('/assignments', [
@@ -1954,30 +2190,78 @@ router.post('/assignments', [
       return res.status(403).json({ success: false, message: 'Not authorized' });
     }
 
-    // Check if reviewer exists
+    // Check if reviewer exists and has correct role
     const reviewer = await User.findById(reviewerId).lean();
     if (!reviewer || reviewer.role !== 'reviewer') {
       return res.status(400).json({ success: false, message: 'Invalid reviewer' });
     }
 
-    // Check for existing assignment
+    // Check conference registration eligibility (same rules as auto-assign)
+    if (featureFlags.ENABLE_CONFERENCE_ELIGIBILITY) {
+      const registration = await ReviewerConferenceRegistration.findOne({
+        reviewerId,
+        conferenceId: conference._id,
+        active: true
+      }).lean();
+
+      if (!registration) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'REVIEWER_NOT_REGISTERED',
+            message: 'Reviewer is not registered for this conference. They must register before being assigned.'
+          }
+        });
+      }
+
+      const hasFee = conference.fee > 0;
+      const isEligible = registration.status === 'REGISTERED_ACTIVE' ||
+        (registration.status === 'REGISTERED_PENDING_PAYMENT' && !hasFee);
+
+      if (!isEligible) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'REVIEWER_INELIGIBLE',
+            message: `Reviewer registration status (${registration.status}) does not allow assignment.`
+          }
+        });
+      }
+    }
+
+    // Check for existing active assignment (duplicate prevention)
     const existing = await Assignment.findOne({ reviewerId, submissionId, status: 'ACTIVE' }).lean();
     if (existing) {
-      return res.status(400).json({ success: false, message: 'Assignment already exists' });
+      return res.status(409).json({
+        success: false,
+        error: { code: 'DUPLICATE_ASSIGNMENT', message: 'Assignment already exists for this reviewer-submission pair' }
+      });
+    }
+
+    // Check reviewer capacity
+    const currentLoad = await Assignment.countDocuments({ reviewerId, status: 'ACTIVE' });
+    const maxLoad = reviewer.maxLoad || 10;
+    if (currentLoad >= maxLoad) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'CAPACITY_EXCEEDED', message: `Reviewer has reached maximum capacity (${currentLoad}/${maxLoad})` }
+      });
     }
 
     // Check for conflicts
     const author = await User.findById(submission.authorId).lean();
     if (hasConflict(reviewer, submission, author)) {
-      return res.status(400).json({ success: false, message: 'Conflict detected between reviewer and submission' });
+      return res.status(400).json({
+        success: false,
+        error: { code: 'ASSIGNMENT_CONFLICT', message: 'Conflict detected between reviewer and submission' }
+      });
     }
 
     // Find any approved bid
-    const bid = await Bid.findOne({
-      reviewerId,
-      submissionId,
-      status: 'APPROVED'
-    }).lean();
+    const bid = await Bid.findOne({ reviewerId, submissionId, status: 'APPROVED' }).lean();
+
+    // Compute score with capacity awareness
+    const matchResult = computeMatchScore(bid, reviewer, submission, conference, currentLoad, maxLoad);
 
     const assignment = new Assignment({
       reviewerId,
@@ -1986,7 +2270,8 @@ router.post('/assignments', [
       conferenceId: conference._id,
       bidId: bid ? bid._id : null,
       source: 'MANUAL',
-      matchScore: bid ? computeMatchScore(bid, reviewer, submission, conference) : 25,
+      matchScore: matchResult.score,
+      matchReason: matchResult.reason,
       assignedBy: organizerId,
       assignedAt: new Date(),
       notes
@@ -1994,9 +2279,18 @@ router.post('/assignments', [
 
     await assignment.save();
 
+    // Update submission assignedReviewers + assignedCount
+    await Submission.findByIdAndUpdate(submissionId, {
+      $addToSet: { assignedReviewers: reviewerId },
+      $inc: { assignedCount: 1 },
+    });
+
+    // Update reviewer lastAssignedAt
+    await User.findByIdAndUpdate(reviewerId, { lastAssignedAt: new Date() });
+
     const populated = await Assignment.findById(assignment._id)
-      .populate({ path: 'reviewerId', select: 'name email' })
-      .populate({ path: 'submissionId', select: 'title' });
+      .populate({ path: 'reviewerId', select: 'name email affiliation expertiseDomains maxLoad' })
+      .populate({ path: 'submissionId', select: 'title keywords' });
 
     res.status(201).json({ success: true, message: 'Assignment created', data: populated });
   } catch (error) {
@@ -2078,6 +2372,163 @@ router.delete('/assignments/:id', async (req, res) => {
   } catch (error) {
     console.error('Delete assignment error:', error);
     res.status(500).json({ success: false, message: 'Error deleting assignment', error: error.message });
+  }
+});
+
+// ============ ELIGIBLE REVIEWERS ============
+
+/**
+ * @route   GET /api/organizer/conferences/:id/eligible-reviewers
+ * @desc    Get conference-registered eligible reviewers with status info
+ * @access  Private (Organizer)
+ */
+router.get('/conferences/:id/eligible-reviewers', async (req, res) => {
+  try {
+    const organizerId = req.user.userId;
+    const conferenceId = req.params.id;
+
+    const conference = await Conference.findOne({ _id: conferenceId, organizerId }).lean();
+    if (!conference) {
+      return res.status(404).json({ success: false, message: 'Conference not found' });
+    }
+
+    const registrations = await ReviewerConferenceRegistration.find({ conferenceId })
+      .populate('reviewerId', 'name email affiliation expertiseDomains maxLoad')
+      .sort({ registeredAt: -1 })
+      .lean();
+
+    // Get assignment counts for each reviewer
+    const reviewerIds = registrations.map(r => r.reviewerId?._id).filter(Boolean);
+    const assignmentCounts = await Assignment.aggregate([
+      { $match: { conferenceId: new mongoose.Types.ObjectId(conferenceId), reviewerId: { $in: reviewerIds }, status: 'ACTIVE' } },
+      { $group: { _id: '$reviewerId', count: { $sum: 1 } } }
+    ]);
+    const countMap = new Map(assignmentCounts.map(a => [a._id.toString(), a.count]));
+
+    const hasFee = conference.fee > 0;
+    const enriched = registrations.map(reg => {
+      const isEligible = reg.active && (
+        reg.status === 'REGISTERED_ACTIVE' ||
+        (reg.status === 'REGISTERED_PENDING_PAYMENT' && !hasFee)
+      );
+      const revId = reg.reviewerId?._id?.toString();
+      return {
+        ...reg,
+        isEligible,
+        currentAssignments: revId ? (countMap.get(revId) || 0) : 0,
+      };
+    });
+
+    res.json({
+      success: true,
+      data: {
+        reviewers: enriched,
+        total: enriched.length,
+        eligible: enriched.filter(r => r.isEligible).length,
+      }
+    });
+  } catch (error) {
+    console.error('Get eligible reviewers error:', error);
+    res.status(500).json({ success: false, message: 'Error fetching eligible reviewers', error: error.message });
+  }
+});
+
+// ============ ASSIGNMENT ANALYTICS ============
+
+/**
+ * @route   GET /api/organizer/conferences/:id/assignment-analytics
+ * @desc    Get assignment analytics for a conference
+ * @access  Private (Organizer)
+ */
+router.get('/conferences/:id/assignment-analytics', async (req, res) => {
+  try {
+    if (!featureFlags.ENABLE_ASSIGNMENT_ANALYTICS) {
+      return res.status(400).json({ success: false, message: 'Assignment analytics is not enabled' });
+    }
+
+    const organizerId = req.user.userId;
+    const conferenceId = req.params.id;
+
+    const conference = await Conference.findOne({ _id: conferenceId, organizerId }).lean();
+    if (!conference) {
+      return res.status(404).json({ success: false, message: 'Conference not found' });
+    }
+
+    const confObjId = new mongoose.Types.ObjectId(conferenceId);
+
+    // Aggregate assignment stats
+    const [scoreStats, sourceBreakdown, reviewerLoadData] = await Promise.all([
+      // Score distribution
+      Assignment.aggregate([
+        { $match: { conferenceId: confObjId, status: 'ACTIVE' } },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 },
+            avgScore: { $avg: '$matchScore' },
+            low: { $sum: { $cond: [{ $lte: ['$matchScore', 25] }, 1, 0] } },
+            medium: { $sum: { $cond: [{ $and: [{ $gt: ['$matchScore', 25] }, { $lte: ['$matchScore', 50] }] }, 1, 0] } },
+            good: { $sum: { $cond: [{ $and: [{ $gt: ['$matchScore', 50] }, { $lte: ['$matchScore', 75] }] }, 1, 0] } },
+            excellent: { $sum: { $cond: [{ $gt: ['$matchScore', 75] }, 1, 0] } },
+          }
+        }
+      ]),
+
+      // Source breakdown
+      Assignment.aggregate([
+        { $match: { conferenceId: confObjId, status: 'ACTIVE' } },
+        { $group: { _id: '$source', count: { $sum: 1 } } }
+      ]),
+
+      // Reviewer load distribution
+      Assignment.aggregate([
+        { $match: { conferenceId: confObjId, status: 'ACTIVE' } },
+        { $group: { _id: '$reviewerId', count: { $sum: 1 } } },
+        { $lookup: { from: 'users', localField: '_id', foreignField: '_id', as: 'reviewer' } },
+        { $unwind: '$reviewer' },
+        { $project: { name: '$reviewer.name', count: 1, maxLoad: { $ifNull: ['$reviewer.maxLoad', 10] } } },
+        { $sort: { count: -1 } }
+      ]),
+    ]);
+
+    const stats = scoreStats[0] || { total: 0, avgScore: 0, low: 0, medium: 0, good: 0, excellent: 0 };
+
+    // Source counts
+    const sources = {};
+    for (const s of sourceBreakdown) {
+      sources[s._id || 'UNKNOWN'] = s.count;
+    }
+
+    // Bid coverage
+    const tracks = await Track.find({ conferenceId }).select('_id').lean();
+    const trackIds = tracks.map(t => t._id);
+    const totalSubmissions = await Submission.countDocuments({ trackId: { $in: trackIds } });
+    const biddedSubmissions = await Bid.distinct('submissionId', { trackId: { $in: trackIds }, status: 'APPROVED' });
+    const bidCoverage = totalSubmissions > 0 ? Math.round((biddedSubmissions.length / totalSubmissions) * 100 * 10) / 10 : 0;
+
+    // Fallback percentage
+    const fallbackPct = stats.total > 0 ? Math.round(((sources.FALLBACK || 0) / stats.total) * 100 * 10) / 10 : 0;
+
+    res.json({
+      success: true,
+      data: {
+        averageScore: Math.round(stats.avgScore || 0),
+        scoreDistribution: {
+          '0-25': stats.low,
+          '26-50': stats.medium,
+          '51-75': stats.good,
+          '76-100': stats.excellent,
+        },
+        reviewerLoad: reviewerLoadData.map(r => ({ name: r.name, count: r.count, max: r.maxLoad })),
+        sourceBreakdown: sources,
+        fallbackPercentage: fallbackPct,
+        bidCoverage,
+        totalAssignments: stats.total,
+      }
+    });
+  } catch (error) {
+    console.error('Assignment analytics error:', error);
+    res.status(500).json({ success: false, message: 'Error fetching analytics', error: error.message });
   }
 });
 

@@ -69,6 +69,26 @@ const userSchema = new mongoose.Schema({
     type: String,
     trim: true
   }],
+  maxLoad: {
+    type: Number,
+    default: 10,
+    min: [1, 'Max load must be at least 1']
+  },
+  expertiseVectors: [{
+    type: Number
+  }],
+  unavailableDates: [{
+    type: Date
+  }],
+  pastPerformanceScore: {
+    type: Number,
+    default: 50,
+    min: [0, 'Performance score cannot be negative'],
+    max: [100, 'Performance score cannot exceed 100']
+  },
+  lastAssignedAt: {
+    type: Date
+  },
   createdAt: {
     type: Date,
     default: Date.now
@@ -76,6 +96,9 @@ const userSchema = new mongoose.Schema({
 }, {
   timestamps: true
 });
+
+// Indexes for efficient queries
+userSchema.index({ role: 1, expertiseDomains: 1 });
 
 // Hash password before saving
 userSchema.pre('save', async function(next) {

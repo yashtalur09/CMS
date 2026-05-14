@@ -9,7 +9,7 @@ import Button from '../../components/Button';
 import Loading from '../../components/Loading';
 import Select from '../../components/Select';
 import Modal from '../../components/Modal';
-import { getTracks, getConferenceSubmissionsReviewer, placeBid } from '../../utils/api';
+import { getTracks, getConferenceSubmissionsReviewer, placeBid, registerReviewerConference } from '../../utils/api';
 
 const ConferenceSubmissions = () => {
   const { id: conferenceId } = useParams();
@@ -20,6 +20,8 @@ const ConferenceSubmissions = () => {
   const [tracks, setTracks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [canRegister, setCanRegister] = useState(false);
+  const [registering, setRegistering] = useState(false);
   const [trackFilter, setTrackFilter] = useState('');
   const [bidding, setBidding] = useState(null);
   const [showAllPapers, setShowAllPapers] = useState(false); // Toggle state: false = recommended only
@@ -70,6 +72,7 @@ const ConferenceSubmissions = () => {
     try {
       setLoading(true);
       setError(null);
+      setCanRegister(false);
       const [subsRes, tracksRes] = await Promise.all([
         getConferenceSubmissionsReviewer(conferenceId, { trackId: trackFilter || undefined }),
         getTracks(conferenceId)
@@ -78,7 +81,11 @@ const ConferenceSubmissions = () => {
       setTracks(tracksRes.data || tracksRes || []);
     } catch (err) {
       console.error('Error fetching data:', err);
-      setError(err.response?.data?.message || 'Failed to load submissions');
+      const message = err.response?.data?.message || 'Failed to load submissions';
+      setError(message);
+      if (err.response?.status === 403) {
+        setCanRegister(true);
+      }
     } finally {
       setLoading(false);
     }
@@ -114,6 +121,20 @@ const ConferenceSubmissions = () => {
       toast.error(err.response?.data?.message || 'Failed to place bid');
     } finally {
       setBidding(null);
+    }
+  };
+
+  const handleRegister = async () => {
+    try {
+      setRegistering(true);
+      await registerReviewerConference(conferenceId);
+      toast.success('Registered for conference. You can now view submissions.');
+      await fetchData();
+    } catch (err) {
+      console.error('Error registering reviewer:', err);
+      toast.error(err.response?.data?.message || 'Failed to register for conference');
+    } finally {
+      setRegistering(false);
     }
   };
 
@@ -177,12 +198,24 @@ const ConferenceSubmissions = () => {
         {error && (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
             <p className="text-red-800">{error}</p>
-            <button
-              onClick={fetchData}
-              className="text-red-600 hover:text-red-800 font-medium mt-2"
-            >
-              Try Again
-            </button>
+            <div className="flex flex-wrap gap-2 mt-3">
+              <button
+                onClick={fetchData}
+                className="text-red-600 hover:text-red-800 font-medium"
+              >
+                Try Again
+              </button>
+              {canRegister && (
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={handleRegister}
+                  disabled={registering}
+                >
+                  {registering ? 'Registering...' : 'Register for Conference'}
+                </Button>
+              )}
+            </div>
           </div>
         )}
 

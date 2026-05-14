@@ -16,6 +16,11 @@ const bidSchema = new mongoose.Schema({
     ref: 'Track',
     required: false
   },
+  conferenceId: { // Conference-scoped reference for eligibility enforcement
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Conference',
+    required: false
+  },
   confidence: {
     type: Number,
     default: 0,
@@ -32,9 +37,24 @@ const bidSchema = new mongoose.Schema({
     decidedAt: { type: Date },
     reason: { type: String, maxlength: [1000, 'Reason cannot exceed 1000 characters'] }
   },
+  bidTimestamp: {
+    type: Date,
+    default: Date.now
+  },
+  matchScore: {
+    type: Number,
+    default: 0,
+    min: [0, 'Match score cannot be negative'],
+    max: [100, 'Match score cannot exceed 100']
+  },
   createdAt: {
     type: Date,
     default: Date.now
+  },
+  bidStrength: {
+    type: String,
+    enum: ['STRONG_ACCEPT', 'INTERESTED', 'NEUTRAL', 'WEAK_INTEREST', null],
+    default: null
   }
 }, {
   timestamps: true,
@@ -50,5 +70,11 @@ bidSchema.index({ status: 1 });
 
 // Compound index to prevent duplicate bids
 bidSchema.index({ reviewerId: 1, submissionId: 1 }, { unique: true });
+
+// Compound index for efficient bid lookups during auto-assign
+bidSchema.index({ status: 1, submissionId: 1, reviewerId: 1 });
+
+// Conference-scoped bid queries
+bidSchema.index({ conferenceId: 1, status: 1 });
 
 module.exports = mongoose.model('Bid', bidSchema);
