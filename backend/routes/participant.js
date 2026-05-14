@@ -56,7 +56,6 @@ router.get('/dashboard', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching dashboard data',
-      error: error.message
     });
   }
 });
@@ -122,7 +121,6 @@ router.get('/conferences', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching conferences',
-      error: error.message
     });
   }
 });
@@ -178,7 +176,6 @@ router.get('/conferences/:id', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching conference',
-      error: error.message
     });
   }
 });
@@ -252,7 +249,6 @@ router.post('/registrations', [
     res.status(500).json({
       success: false,
       message: 'Error registering for conference',
-      error: error.message
     });
   }
 });
@@ -280,7 +276,6 @@ router.get('/registrations', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching registrations',
-      error: error.message
     });
   }
 });
@@ -318,7 +313,6 @@ router.put('/registrations/:id/payment', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error updating payment status',
-      error: error.message
     });
   }
 });
@@ -349,7 +343,6 @@ router.get('/certificates', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching certificates',
-      error: error.message
     });
   }
 });
@@ -394,7 +387,6 @@ router.get('/certificates/:id/download', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error downloading certificate',
-      error: error.message
     });
   }
 });

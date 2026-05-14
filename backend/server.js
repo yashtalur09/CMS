@@ -3,6 +3,7 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const connectDB = require('./config/database');
 const { initializeScheduledTasks } = require('./utils/scheduledTasks');
+const { sanitizeMessage, sanitizeErrorResponse } = require('./utils/errorSanitizer');
 
 // Load environment variables
 dotenv.config();
@@ -20,6 +21,19 @@ initializeScheduledTasks();
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Response sanitizer middleware — intercepts ALL res.json() calls
+// to strip sensitive env values (API keys, secrets, etc.) from responses
+app.use((req, res, next) => {
+  const originalJson = res.json.bind(res);
+  res.json = (body) => {
+    if (body && typeof body === 'object' && body.success === false) {
+      body = sanitizeErrorResponse(body);
+    }
+    return originalJson(body);
+  };
+  next();
+});
 
 // Static file serving for uploads
 app.use('/uploads', express.static('uploads'));
@@ -50,12 +64,27 @@ app.get('/api/health', (req, res) => {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(err.status || 500).json({
+  // Log the full error server-side (sanitized to protect logs if they're aggregated)
+  console.error('Global error handler:', sanitizeMessage(err.message));
+  if (process.env.NODE_ENV === 'development') {
+    console.error(err.stack);
+  }
+
+  // Never send raw error messages to clients — always sanitize
+  const safeMessage = sanitizeMessage(err.message) || 'Internal Server Error';
+  const statusCode = err.status || 500;
+
+  const response = {
     success: false,
-    message: err.message || 'Internal Server Error',
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
-  });
+    message: statusCode === 500 ? 'Internal Server Error' : safeMessage,
+  };
+
+  // Only include sanitized stack in development
+  if (process.env.NODE_ENV === 'development') {
+    response.stack = sanitizeMessage(err.stack);
+  }
+
+  res.status(statusCode).json(response);
 });
 
 // 404 handler

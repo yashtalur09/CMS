@@ -5,12 +5,26 @@ const path = require('path');
 const { auth } = require('../middleware/auth');
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const { getSafeErrorMessage, sanitizeMessage } = require('../utils/errorSanitizer');
+
+// Validate Cloudinary configuration at startup
+const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+const apiKey = process.env.CLOUDINARY_API_KEY;
+const apiSecret = process.env.CLOUDINARY_API_SECRET;
+
+if (!cloudName || !apiKey || !apiSecret) {
+    console.error('[CLOUDINARY] Missing required environment variables:',
+        !cloudName ? 'CLOUDINARY_CLOUD_NAME' : '',
+        !apiKey ? 'CLOUDINARY_API_KEY' : '',
+        !apiSecret ? 'CLOUDINARY_API_SECRET' : ''
+    );
+}
 
 // Configure Cloudinary
 cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET
+    cloud_name: cloudName,
+    api_key: apiKey,
+    api_secret: apiSecret
 });
 
 // Configure Cloudinary storage for multer
@@ -88,8 +102,7 @@ router.post('/paper', upload.single('file'), (req, res) => {
         console.error('File upload error:', error);
         res.status(500).json({
             success: false,
-            message: 'Error uploading file',
-            error: error.message
+            message: getSafeErrorMessage(error, 'Error uploading file')
         });
     }
 });
@@ -105,13 +118,17 @@ router.use((err, req, res, next) => {
         }
         return res.status(400).json({
             success: false,
-            message: err.message
+            message: getSafeErrorMessage(err, 'File upload error')
         });
     }
     if (err) {
+        // Sanitize the error message to prevent leaking sensitive data
+        // (e.g., Cloudinary API keys in error responses)
+        const safeMessage = getSafeErrorMessage(err, 'File upload failed. Please try again.');
+        console.error('Upload error (sanitized for log):', sanitizeMessage(err.message));
         return res.status(400).json({
             success: false,
-            message: err.message
+            message: safeMessage
         });
     }
     next();

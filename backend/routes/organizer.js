@@ -88,7 +88,7 @@ router.get('/conferences', async (req, res) => {
     res.json({ success: true, data: { conferences: conferencesWithStats } });
   } catch (error) {
     console.error('Get conferences error (agg):', error);
-    res.status(500).json({ success: false, message: 'Error fetching conferences', error: error.message });
+    res.status(500).json({ success: false, message: 'Error fetching conferences' });
   }
 });
 
@@ -159,7 +159,7 @@ router.get('/conferences/:id', async (req, res) => {
     res.json({ success: true, data: conference });
   } catch (error) {
     console.error('Get conference error (agg):', error);
-    res.status(500).json({ success: false, message: 'Error fetching conference', error: error.message });
+    res.status(500).json({ success: false, message: 'Error fetching conference' });
   }
 });
 
@@ -215,7 +215,6 @@ router.post('/conferences', [
     res.status(500).json({
       success: false,
       message: 'Error creating conference',
-      error: error.message
     });
   }
 });
@@ -272,7 +271,6 @@ router.put('/conferences/:id', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error updating conference',
-      error: error.message
     });
   }
 });
@@ -367,7 +365,6 @@ router.get('/conferences/:id/submissions', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching submissions',
-      error: error.message
     });
   }
 });
@@ -467,7 +464,7 @@ router.patch('/submission/:submissionId/decision', [
 
   } catch (error) {
     console.error('Decision error:', error);
-    res.status(500).json({ success: false, message: 'Error recording decision', error: error.message });
+    res.status(500).json({ success: false, message: 'Error recording decision' });
   }
 });
 
@@ -515,7 +512,7 @@ router.put('/submissions/:id/approve', async (req, res) => {
 
   } catch (error) {
     console.error('Approve submission error:', error);
-    res.status(500).json({ success: false, message: 'Error approving submission', error: error.message });
+    res.status(500).json({ success: false, message: 'Error approving submission' });
   }
 });
 
@@ -554,7 +551,7 @@ router.put('/submissions/:id/status', [
 
   } catch (error) {
     console.error('Update submission status error:', error);
-    res.status(500).json({ success: false, message: 'Error updating submission status', error: error.message });
+    res.status(500).json({ success: false, message: 'Error updating submission status' });
   }
 });
 
@@ -606,7 +603,7 @@ router.put('/submissions/:id/schedule', [
 
   } catch (error) {
     console.error('Schedule submission error:', error);
-    res.status(500).json({ success: false, message: 'Error scheduling submission', error: error.message });
+    res.status(500).json({ success: false, message: 'Error scheduling submission' });
   }
 });
 
@@ -702,7 +699,7 @@ router.post('/conferences/:id/certificates', async (req, res) => {
             created.push({ type: 'author', user: author.name, certificateId: cert._id });
           } catch (err) {
             console.error('Error generating author certificate:', err);
-            errors.push({ type: 'author', user: author.name, error: err.message });
+            errors.push({ type: 'author', user: author.name, error: 'Operation failed' });
           }
         }
       }
@@ -752,7 +749,7 @@ router.post('/conferences/:id/certificates', async (req, res) => {
           created.push({ type: 'participant', user: reg.participantId.name, certificateId: cert._id });
         } catch (err) {
           console.error('Error generating participant certificate:', err);
-          errors.push({ type: 'participant', user: reg.participantId.name, error: err.message });
+          errors.push({ type: 'participant', user: reg.participantId.name, error: 'Operation failed' });
         }
       }
     }
@@ -808,7 +805,7 @@ router.post('/conferences/:id/certificates', async (req, res) => {
           created.push({ type: 'reviewer', user: reviewer.name, certificateId: cert._id });
         } catch (err) {
           console.error('Error generating reviewer certificate:', err);
-          errors.push({ type: 'reviewer', user: reviewer.name, error: err.message });
+          errors.push({ type: 'reviewer', user: reviewer.name, error: 'Operation failed' });
         }
       }
     }
@@ -825,7 +822,7 @@ router.post('/conferences/:id/certificates', async (req, res) => {
 
   } catch (error) {
     console.error('Generate certificates error:', error);
-    res.status(500).json({ success: false, message: 'Error generating certificates', error: error.message });
+    res.status(500).json({ success: false, message: 'Error generating certificates' });
   }
 });
 
@@ -864,7 +861,7 @@ router.put('/registrations/:id/attendance', async (req, res) => {
 
   } catch (error) {
     console.error('Update attendance error:', error);
-    res.status(500).json({ success: false, message: 'Error updating attendance', error: error.message });
+    res.status(500).json({ success: false, message: 'Error updating attendance' });
   }
 });
 
@@ -906,7 +903,7 @@ router.put('/submissions/:id/attendance', async (req, res) => {
 
   } catch (error) {
     console.error('Update author attendance error:', error);
-    res.status(500).json({ success: false, message: 'Error updating author attendance', error: error.message });
+    res.status(500).json({ success: false, message: 'Error updating author attendance' });
   }
 });
 
@@ -950,7 +947,7 @@ router.get('/conferences/:id/authors', async (req, res) => {
 
   } catch (error) {
     console.error('Get authors error:', error);
-    res.status(500).json({ success: false, message: 'Error fetching authors', error: error.message });
+    res.status(500).json({ success: false, message: 'Error fetching authors' });
   }
 });
 
@@ -1030,7 +1027,7 @@ router.get('/conferences/:id/certificate-stats', async (req, res) => {
 
   } catch (error) {
     console.error('Get certificate stats error:', error);
-    res.status(500).json({ success: false, message: 'Error fetching certificate stats', error: error.message });
+    res.status(500).json({ success: false, message: 'Error fetching certificate stats' });
   }
 });
 
@@ -1055,7 +1052,7 @@ router.get('/conferences/:id/participants', async (req, res) => {
 
   } catch (error) {
     console.error('Get participants error:', error);
-    res.status(500).json({ success: false, message: 'Error fetching participants', error: error.message });
+    res.status(500).json({ success: false, message: 'Error fetching participants' });
   }
 });
 
@@ -1100,7 +1097,7 @@ router.post(
       console.error('Upload signature error:', error);
       res
         .status(500)
-        .json({ success: false, message: 'Error uploading signature', error: error.message });
+        .json({ success: false, message: 'Error uploading signature' });
     }
   }
 );
@@ -1159,7 +1156,7 @@ router.get('/reviews', async (req, res) => {
     res.json({ success: true, data: reviews });
   } catch (error) {
     console.error('Organizer list reviews error:', error);
-    res.status(500).json({ success: false, message: 'Error fetching reviews', error: error.message });
+    res.status(500).json({ success: false, message: 'Error fetching reviews' });
   }
 });
 
@@ -1207,7 +1204,7 @@ router.get('/conferences/:id/reviews', async (req, res) => {
     res.json({ success: true, data: reviews });
   } catch (error) {
     console.error('Organizer conference reviews error:', error);
-    res.status(500).json({ success: false, message: 'Error fetching conference reviews', error: error.message });
+    res.status(500).json({ success: false, message: 'Error fetching conference reviews' });
   }
 });
 
@@ -1249,7 +1246,7 @@ router.get('/submissions/:submissionId/reviews', async (req, res) => {
     res.json({ success: true, data: reviews });
   } catch (error) {
     console.error('Organizer submission reviews error:', error);
-    res.status(500).json({ success: false, message: 'Error fetching submission reviews', error: error.message });
+    res.status(500).json({ success: false, message: 'Error fetching submission reviews' });
   }
 });
 
@@ -1334,7 +1331,7 @@ router.get('/bids', async (req, res) => {
     });
   } catch (error) {
     console.error('Get organizer bids error:', error);
-    res.status(500).json({ success: false, message: 'Error fetching bids', error: error.message });
+    res.status(500).json({ success: false, message: 'Error fetching bids' });
   }
 });
 
@@ -1393,7 +1390,7 @@ router.get('/conferences/:id/bids', async (req, res) => {
     });
   } catch (error) {
     console.error('Get conference bids error:', error);
-    res.status(500).json({ success: false, message: 'Error fetching conference bids', error: error.message });
+    res.status(500).json({ success: false, message: 'Error fetching conference bids' });
   }
 });
 
@@ -1489,7 +1486,7 @@ router.patch('/bids/:id', [
     res.json({ success: true, message: `Bid ${req.body.status.toLowerCase()}`, data: updatedBid });
   } catch (error) {
     console.error('Update bid error:', error);
-    res.status(500).json({ success: false, message: 'Error updating bid', error: error.message });
+    res.status(500).json({ success: false, message: 'Error updating bid' });
   }
 });
 
@@ -1576,7 +1573,7 @@ router.post('/bids/bulk-update', [
     });
   } catch (error) {
     console.error('Bulk update bids error:', error);
-    res.status(500).json({ success: false, message: 'Error updating bids', error: error.message });
+    res.status(500).json({ success: false, message: 'Error updating bids' });
   }
 });
 
@@ -2083,7 +2080,7 @@ router.post('/conferences/:id/auto-assign', [
 
   } catch (error) {
     console.error('Auto-assign error:', error);
-    res.status(500).json({ success: false, message: 'Error running auto-assignment', error: error.message });
+    res.status(500).json({ success: false, message: 'Error running auto-assignment' });
   }
 });
 
@@ -2152,7 +2149,7 @@ router.get('/conferences/:id/assignments', async (req, res) => {
     });
   } catch (error) {
     console.error('Get assignments error:', error);
-    res.status(500).json({ success: false, message: 'Error fetching assignments', error: error.message });
+    res.status(500).json({ success: false, message: 'Error fetching assignments' });
   }
 });
 
@@ -2295,7 +2292,7 @@ router.post('/assignments', [
     res.status(201).json({ success: true, message: 'Assignment created', data: populated });
   } catch (error) {
     console.error('Create assignment error:', error);
-    res.status(500).json({ success: false, message: 'Error creating assignment', error: error.message });
+    res.status(500).json({ success: false, message: 'Error creating assignment' });
   }
 });
 
@@ -2336,7 +2333,7 @@ router.put('/assignments/:id', async (req, res) => {
     res.json({ success: true, message: 'Assignment updated', data: updated });
   } catch (error) {
     console.error('Update assignment error:', error);
-    res.status(500).json({ success: false, message: 'Error updating assignment', error: error.message });
+    res.status(500).json({ success: false, message: 'Error updating assignment' });
   }
 });
 
@@ -2371,7 +2368,7 @@ router.delete('/assignments/:id', async (req, res) => {
     res.json({ success: true, message: 'Assignment deleted' });
   } catch (error) {
     console.error('Delete assignment error:', error);
-    res.status(500).json({ success: false, message: 'Error deleting assignment', error: error.message });
+    res.status(500).json({ success: false, message: 'Error deleting assignment' });
   }
 });
 
@@ -2429,7 +2426,7 @@ router.get('/conferences/:id/eligible-reviewers', async (req, res) => {
     });
   } catch (error) {
     console.error('Get eligible reviewers error:', error);
-    res.status(500).json({ success: false, message: 'Error fetching eligible reviewers', error: error.message });
+    res.status(500).json({ success: false, message: 'Error fetching eligible reviewers' });
   }
 });
 
@@ -2528,7 +2525,7 @@ router.get('/conferences/:id/assignment-analytics', async (req, res) => {
     });
   } catch (error) {
     console.error('Assignment analytics error:', error);
-    res.status(500).json({ success: false, message: 'Error fetching analytics', error: error.message });
+    res.status(500).json({ success: false, message: 'Error fetching analytics' });
   }
 });
 

@@ -47,7 +47,6 @@ router.get('/dashboard', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching dashboard data',
-      error: error.message
     });
   }
 });
@@ -108,7 +107,6 @@ router.get('/conferences', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching conferences',
-      error: error.message
     });
   }
 });
@@ -150,7 +148,6 @@ router.get('/conferences/:id', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching conference',
-      error: error.message
     });
   }
 });
@@ -185,7 +182,6 @@ router.get('/conferences/:id/tracks', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching tracks',
-      error: error.message
     });
   }
 });
@@ -298,7 +294,7 @@ router.post(
 
     } catch (error) {
       console.error('Author submit error:', error);
-      res.status(500).json({ success: false, message: 'Error creating submission', error: error.message });
+      res.status(500).json({ success: false, message: 'Error creating submission' });
     }
   }
 );
@@ -341,7 +337,7 @@ router.get('/submissions', async (req, res) => {
     res.json({ success: true, data: enrichedSubmissions });
   } catch (error) {
     console.error('Author get submissions error:', error);
-    res.status(500).json({ success: false, message: 'Error fetching submissions', error: error.message });
+    res.status(500).json({ success: false, message: 'Error fetching submissions' });
   }
 });
 
@@ -391,7 +387,7 @@ router.get('/submissions/:id', async (req, res) => {
     res.json({ success: true, data: submission });
   } catch (error) {
     console.error('Author get submission detail error:', error);
-    res.status(500).json({ success: false, message: 'Error fetching submission', error: error.message });
+    res.status(500).json({ success: false, message: 'Error fetching submission' });
   }
 });
 
@@ -469,7 +465,7 @@ router.put(
 
     } catch (error) {
       console.error('Author revision upload error:', error);
-      res.status(500).json({ success: false, message: 'Error uploading revision', error: error.message });
+      res.status(500).json({ success: false, message: 'Error uploading revision' });
     }
   }
 );
@@ -496,7 +492,7 @@ router.get('/certificates', async (req, res) => {
 
   } catch (error) {
     console.error('Get author certificates error:', error);
-    res.status(500).json({ success: false, message: 'Error fetching certificates', error: error.message });
+    res.status(500).json({ success: false, message: 'Error fetching certificates' });
   }
 });
 
@@ -533,7 +529,7 @@ router.get('/certificates/:id/download', async (req, res) => {
 
   } catch (error) {
     console.error('Download author certificate error:', error);
-    res.status(500).json({ success: false, message: 'Error downloading certificate', error: error.message });
+    res.status(500).json({ success: false, message: 'Error downloading certificate' });
   }
 });
 

@@ -5,6 +5,7 @@ const axios = require('axios');
 const User = require('../models/User');
 const { generateToken } = require('../utils/jwt');
 const { auth } = require('../middleware/auth');
+const { sanitizeMessage } = require('../utils/errorSanitizer');
 
 /**
  * @route   POST /api/auth/register
@@ -94,11 +95,10 @@ router.post('/register', [
     });
 
   } catch (error) {
-    console.error('Registration error:', error);
+    console.error('Registration error:', sanitizeMessage(error.message));
     res.status(500).json({
       success: false,
-      message: 'Error registering user',
-      error: error.message
+      message: 'Error registering user'
     });
   }
 });
@@ -159,11 +159,10 @@ router.post('/login', [
     });
 
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('Login error:', sanitizeMessage(error.message));
     res.status(500).json({
       success: false,
-      message: 'Error logging in',
-      error: error.message
+      message: 'Error logging in'
     });
   }
 });
@@ -190,11 +189,10 @@ router.get('/me', auth, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Get user error:', error);
+    console.error('Get user error:', sanitizeMessage(error.message));
     res.status(500).json({
       success: false,
-      message: 'Error fetching user',
-      error: error.message
+      message: 'Error fetching user'
     });
   }
 });
@@ -236,11 +234,10 @@ router.put('/profile', auth, [
     });
 
   } catch (error) {
-    console.error('Update profile error:', error);
+    console.error('Update profile error:', sanitizeMessage(error.message));
     res.status(500).json({
       success: false,
-      message: 'Error updating profile',
-      error: error.message
+      message: 'Error updating profile'
     });
   }
 });
@@ -284,7 +281,7 @@ router.post('/google/callback', [
         }
       );
     } catch (tokenError) {
-      console.error('Google token exchange error:', tokenError.response?.data || tokenError.message);
+      console.error('Google token exchange error:', sanitizeMessage(String(tokenError.response?.data?.error || tokenError.message)));
       
       // Handle specific Google OAuth errors
       if (tokenError.response?.data?.error === 'invalid_grant') {
@@ -296,8 +293,7 @@ router.post('/google/callback', [
       
       return res.status(400).json({
         success: false,
-        message: 'Failed to exchange authorization code with Google',
-        error: tokenError.response?.data?.error_description || tokenError.message
+        message: 'Failed to exchange authorization code with Google'
       });
     }
 
@@ -429,11 +425,10 @@ router.post('/google/callback', [
     });
 
   } catch (error) {
-    console.error('Google authentication error:', error.response?.data || error.message);
+    console.error('Google authentication error:', sanitizeMessage(String(error.response?.data || error.message)));
     res.status(500).json({
       success: false,
-      message: 'Error authenticating with Google',
-      error: error.response?.data?.error_description || error.message
+      message: 'Error authenticating with Google'
     });
   }
 });
@@ -478,7 +473,7 @@ router.post('/orcid/callback', [
         }
       );
     } catch (tokenError) {
-      console.error('ORCID token exchange error:', tokenError.response?.data || tokenError.message);
+      console.error('ORCID token exchange error:', sanitizeMessage(String(tokenError.response?.data?.error || tokenError.message)));
       
       // Handle specific ORCID OAuth errors
       if (tokenError.response?.data?.error === 'invalid_grant') {
@@ -490,8 +485,7 @@ router.post('/orcid/callback', [
       
       return res.status(400).json({
         success: false,
-        message: 'Failed to exchange authorization code with ORCID',
-        error: tokenError.response?.data?.error_description || tokenError.message
+        message: 'Failed to exchange authorization code with ORCID'
       });
     }
 
@@ -635,11 +629,10 @@ router.post('/orcid/callback', [
     });
 
   } catch (error) {
-    console.error('ORCID authentication error:', error.response?.data || error.message);
+    console.error('ORCID authentication error:', sanitizeMessage(String(error.response?.data || error.message)));
     res.status(500).json({
       success: false,
-      message: 'Error authenticating with ORCID',
-      error: error.response?.data?.error_description || error.message
+      message: 'Error authenticating with ORCID'
     });
   }
 });

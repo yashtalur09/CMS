@@ -42,7 +42,7 @@ router.post('/', [
     res.status(201).json({ success: true, message: 'Track created', data: track });
   } catch (error) {
     console.error('Create track error:', error);
-    res.status(500).json({ success: false, message: 'Error creating track', error: error.message });
+    res.status(500).json({ success: false, message: 'Error creating track' });
   }
 });
 
@@ -74,7 +74,7 @@ router.put('/:id', [
     res.json({ success: true, message: 'Track updated', data: track });
   } catch (error) {
     console.error('Update track error:', error);
-    res.status(500).json({ success: false, message: 'Error updating track', error: error.message });
+    res.status(500).json({ success: false, message: 'Error updating track' });
   }
 });
 
@@ -97,7 +97,7 @@ router.delete('/:id', async (req, res) => {
     res.json({ success: true, message: 'Track deleted' });
   } catch (error) {
     console.error('Delete track error:', error);
-    res.status(500).json({ success: false, message: 'Error deleting track', error: error.message });
+    res.status(500).json({ success: false, message: 'Error deleting track' });
   }
 });
 
@@ -117,7 +117,7 @@ router.get('/conference/:conferenceId', async (req, res) => {
     res.json({ success: true, data: tracks });
   } catch (error) {
     console.error('List tracks error:', error);
-    res.status(500).json({ success: false, message: 'Error listing tracks', error: error.message });
+    res.status(500).json({ success: false, message: 'Error listing tracks' });
   }
 });
 
