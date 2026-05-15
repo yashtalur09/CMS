@@ -227,7 +227,7 @@ const Home = () => {
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <img
-                src="/logo.png"
+                src="/logo_1.png"
                 alt="eConfMate Logo"
                 className="h-10 w-10 sm:h-12 sm:w-12 object-contain rounded-xl shadow-lg transition-transform duration-200 hover:scale-110"
               />
@@ -430,7 +430,7 @@ const Home = () => {
             <div className="col-span-2 md:col-span-2">
               <div className="flex items-center gap-3 mb-4">
                 <img
-                  src="/logo.png"
+                  src="/logo_1.png"
                   alt="eConfMate Logo"
                   className="h-10 w-10 rounded-xl object-contain"
                 />

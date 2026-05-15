@@ -64,7 +64,7 @@ const Login = () => {
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-3 mb-4">
             <img
-              src="/logo.png"
+              src="/logo_1.png"
               alt="eConfMate Logo"
               className="h-16 w-16 object-contain transition-transform duration-200 hover:scale-110"
             />

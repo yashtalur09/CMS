@@ -9,7 +9,7 @@
  * - No emojis — uses inline SVG icons
  */
 
-const LOGO_URL = 'https://econfmate.vercel.app/logo_without_bg.png';
+const LOGO_URL = 'https://econfmate.vercel.app/logo_1.png';
 const PORTAL_URL = 'econfmate.vercel.app';
 
 // ─── Inline SVG Icons (24px, monochrome stroke, #64748B) ───
